@@ -1,6 +1,6 @@
 # Handoff: Theremin Rider
 
-**Last updated:** 2026-11-10 · **Version:** 0.3.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
+**Last updated:** 2026-11-10 · **Version:** 0.3.1 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
 
 ## 1. What this is
 
@@ -11,7 +11,7 @@ A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. 
 | Area | State |
 |---|---|
 | Bike physics, crash/get-up loop, both modes, HUD, menus | Done; bot-tested headless (Easy and Normal pass; Hard fails the course, KI-03) |
-| Feel (0.3.0) | Slower bike (90 RPM ≈ 24 km/h), road 25 % wider, gentler steering plus a fake steering assist (follows the road, straightens out), less sway, forgiving rails (2.5 s of scraping before a crash), long straight easy start and a slower difficulty ramp. Needs a theremin playtest. |
+| Feel (0.3.0/0.3.1) | Slower bike (90 RPM ≈ 24 km/h, top speed 45 km/h), road 25 % wider, gentler steering plus a fake steering assist (follows the road, straightens out), less sway, forgiving rails (2.5 s of scraping before a crash), long straight easy start and a slower difficulty ramp. Needs a theremin playtest. |
 | Crash effects (thrown rider, spin, sparks, shake, slow motion, crash camera, knocked cones) | Done (0.2.0); checked in screenshots, not played by a human |
 | Balance feel | 0.3.0: steadier than 0.1.0 (`lean_assist`, more damping). 0.2.1: back to the 0.1.0 balance (self-balancing at speed, balance by steering when slow) because 0.2.0 was far too hard (KI-19). Stop-pedalling still falls in ~4 s. Next: small tuning steps from here with the user. |
 | Controller / keyboard play | Done. Not yet played by a human. |

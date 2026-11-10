@@ -19,12 +19,15 @@ const PATH := "res://data/bike_tuning.tres"
 @export_group("Pedalling -> speed")
 ## Bike speed (m/s) per crank RPM. 0.075 => 90 RPM ~ 24 km/h (0.3.0; was 0.105 / 34 km/h).
 @export_range(0.02, 0.2, 0.001) var speed_per_rpm: float = 0.075
+## Top speed of the bike (km/h), however fast you pedal. With speed_per_rpm
+## 0.075 you reach it at about 167 RPM.
+@export_range(10.0, 80.0, 0.5) var max_speed_kmh: float = 45.0
 ## Cadence above this is ignored (stops tap-mashing from going silly).
-@export_range(60.0, 250.0, 1.0) var max_cadence_rpm: float = 150.0
+@export_range(60.0, 250.0, 1.0) var max_cadence_rpm: float = 180.0
 ## How fast speed chases the pedalling target speed (1/s).
-@export_range(0.1, 5.0, 0.05) var pedal_response: float = 0.55
+@export_range(0.1, 5.0, 0.05) var pedal_response: float = 0.75
 ## Cap on forward acceleration from pedalling (m/s^2).
-@export_range(0.5, 6.0, 0.1) var max_accel: float = 1.5
+@export_range(0.5, 6.0, 0.1) var max_accel: float = 2.0
 ## Speed lost per second while coasting (pedalling slower than the bike is moving).
 @export_range(0.0, 3.0, 0.01) var coast_decel: float = 1.0
 ## Air drag while coasting: decel = coast_decel + drag * v^2.
@@ -47,7 +50,7 @@ const PATH := "res://data/bike_tuning.tres"
 @export_group("Steering assist (fake, for the theremin)")
 ## How much of the road's curve the bike follows by itself (0 = none, 1 = all).
 ## Kinematic only: it turns the bike but does not tip it.
-@export_range(0.0, 1.0, 0.01) var road_follow: float = 0.6
+@export_range(0.0, 1.0, 0.01) var road_follow: float = 0.55
 ## Pulls the bike's heading back toward the road direction (1/s). With steering
 ## held, the bike settles at an angle to the road instead of turning in circles;
 ## let go and it straightens out along the road. 0 = off (pre-0.3.0 feel).

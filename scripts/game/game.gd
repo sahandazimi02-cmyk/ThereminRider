@@ -248,6 +248,8 @@ func _check_rail(dt: float) -> bool:
 	_on_rail = absf(bike_lat) >= limit
 	if not _on_rail:
 		rail_time = maxf(0.0, rail_time - dt * rt.rail_recover_rate)
+		if was_on and hud.center_label.text == "RAIL!":
+			hud.clear_message()
 		return false
 	var side := signf(bike_lat)
 	var yaw := road.path.yaw_at(bike_s)

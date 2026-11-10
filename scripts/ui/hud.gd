@@ -99,6 +99,7 @@ func _process(delta: float) -> void:
 		_flash_t -= delta
 		if _flash_t <= 0.0:
 			center_label.text = ""
+			sub_label.text = ""
 
 
 ## Shows a big message; duration <= 0 keeps it until replaced.

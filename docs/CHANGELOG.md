@@ -2,6 +2,22 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.3.1: 2026-11-10, rail message fix, 45 km/h top speed
+
+### Fixed
+- The "RAIL! Steer LEFT/RIGHT" subtitle stayed on screen after leaving the rail. Timed HUD messages only cleared the title, never the subtitle (`hud.gd`). Now both clear, and leaving the rail clears the rail message straight away.
+
+### Changed
+- `road_follow` 0.6 → 0.55 (the bike follows 55 % of each curve by itself).
+- New `max_speed_kmh` 45: hard top speed. `max_cadence_rpm` 150 → 180 so 45 km/h is reachable (≈ 167 RPM at `speed_per_rpm` 0.075). Cruise is unchanged: 90 RPM ≈ 24 km/h.
+- A bit more acceleration: `max_accel` 1.5 → 2.0, `pedal_response` 0.55 → 0.75.
+
+### Tests
+- New check: `max_speed_kmh` is reachable by pedalling.
+
+### Verified
+- Headless import: clean. Smoke test Normal: all pass (endless 290 m in 45 s, 0 crashes; course 4:01.9, 0 crashes). The HUD fix wasn't checked on screen.
+
 ## 0.3.0: 2026-11-10, slower, steadier, more forgiving
 
 Feedback: the bike is too fast and speeds up too fast; theremin steering is still too hard (steers too much, too much sway); hitting the side should not be an instant fail; the start should be a straight, easy road and difficulty should ramp more slowly (course and endless).

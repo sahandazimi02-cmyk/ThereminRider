@@ -20,7 +20,7 @@ The menu's **Balance assist** multiplies two bike values (`GameSession.ASSIST_SC
 
 The bike is simulated directly rather than with Godot's physics engine; that's simpler to tune and fully predictable. Each tick:
 
-1. **Speed.** Target = cadence × `speed_per_rpm` (0.075 → 90 RPM ≈ 24 km/h since 0.3.0; `max_accel` 1.5 and `pedal_response` 0.55 make it build up gently). Pedalling above the current speed accelerates toward the target (`pedal_response`, capped by `max_accel`). Pedalling slower than you're moving = coasting: `coast_decel + coast_drag·v²`, plus `stop_brake` when nobody pedals at all (0 RPM).
+1. **Speed.** Target = cadence × `speed_per_rpm` (0.075 → 90 RPM ≈ 24 km/h since 0.3.0), capped at `max_speed_kmh` (45 km/h since 0.3.1; `max_cadence_rpm` must be high enough to reach it). `max_accel` 2.0 and `pedal_response` 0.75 (0.3.1). Pedalling above the current speed accelerates toward the target (`pedal_response`, capped by `max_accel`). Pedalling slower than you're moving = coasting: `coast_decel + coast_drag·v²`, plus `stop_brake` when nobody pedals at all (0 RPM).
 2. **Steering.** Input −1…1 → front-wheel angle. The maximum angle shrinks with speed (`max_steer_deg_slow` → `max_steer_deg_fast` at `fast_speed`), `steer_expo` softens the centre, and `steer_rate_deg_s` filters jitter. Turn rate = v·tan(δ)/wheelbase. **Lateral acceleration** a = v × turn rate.
    - **Steering assist (0.3.0, "fake" steering for the theremin).** On top of the real turn rate the bike also turns by `road_follow` × the road's own curve and is pulled back toward the road heading at `heading_assist` (1/s). Both are kinematic only: they turn the bike but are *not* part of `a`, so they never tip it. Effect: holding steer moves you across the road at a steady angle; letting go straightens you out along the road. Set both to 0 for the old feel. The game sets `Bike.road_yaw` / `road_curvature` each tick; without a road (unit tests) the assist is off.
 3. **Lean** (positive = right):
@@ -55,7 +55,7 @@ The bike is simulated directly rather than with Godot's physics engine; that's s
 | Falls too fast / too slowly overall | `bike.gravity_scale` ↓/↑, `bike.lean_damping` ↑/↓ (keep T − k well away from 0) |
 | Falls too fast / too slowly when nobody steers | `bike.speed_wobble` ↓/↑, `bike.self_stability` ↑/↓ (still well below T) |
 | Bike falls too soon / too late after pedalling stops | `bike.stop_brake`, `bike.coast_decel`, `bike.coast_drag` (stopping time), `bike.wobble_speed`, `bike.stall_fall_s` |
-| Too fast / slow overall | `bike.speed_per_rpm`, `road.speed_fov_boost_deg` (sense of speed) |
+| Too fast / slow overall | `bike.speed_per_rpm`, `bike.max_speed_kmh` (top speed), `road.speed_fov_boost_deg` (sense of speed) |
 | Crashes too much / not enough drama | "Crash effects" group (`bike_tuning`), "Crash camera" group (`road_tuning`); `slowmo_s` 0 turns slow motion off |
 | Pedaller has to tap/pedal too fast | `bike.speed_per_rpm` ↑ |
 | Get-up too fiddly | `road.reset_center_tolerance` ↑, `road.reset_min_cadence_rpm` ↓, `road.reset_hold_s` ↓ |

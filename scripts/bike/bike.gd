@@ -124,7 +124,7 @@ func step(dt: float, steer_in: float, cadence_rpm: float) -> void:
 
 	# --- speed ---
 	if is_upright():
-		target_speed = cadence * t.speed_per_rpm
+		target_speed = minf(cadence * t.speed_per_rpm, t.max_speed_kmh / 3.6)
 		if target_speed > speed:
 			speed += minf(t.pedal_response * (target_speed - speed), t.max_accel) * dt
 		else:

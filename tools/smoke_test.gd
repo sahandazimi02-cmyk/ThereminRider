@@ -352,6 +352,8 @@ func _test_endless() -> void:
 	print("    45 s: distance %.0f m, crashes %d, top speed %.1f km/h" % [game.distance, game.crashes, top_speed * 3.6])
 	_check(top_speed > 5.0, "pedalling 90 RPM reaches > 18 km/h")
 	_check(top_speed < 8.0, "pedalling 90 RPM stays under 29 km/h (0.3.0 slower bike)")
+	var t := game.bike.tuning
+	_check(minf(250.0, t.max_cadence_rpm) * t.speed_per_rpm * 3.6 >= t.max_speed_kmh - 0.5, "max_speed_kmh is reachable by pedalling (%.0f km/h)" % t.max_speed_kmh)
 	_check(game.distance > 200.0, "bot rides > 200 m in 45 s")
 	_check(game.crashes <= 3, "bot can balance (<= 3 crashes in 45 s)")
 

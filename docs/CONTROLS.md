@@ -4,10 +4,10 @@
 
 | Player | Does | Game effect |
 |---|---|---|
-| Steerer (theremin pitch hand) | Hand toward FULL LEFT / STRAIGHT / FULL RIGHT spots | Steers the front wheel. Steering is also how you **balance**: below about 13 km/h, steer *toward* the side you're falling to catch it. Above that the bike mostly holds itself up, so steer smoothly; a hard yank at speed can still tip you over. |
+| Steerer (theremin pitch hand) | Hand toward FULL LEFT / STRAIGHT / FULL RIGHT spots | Steers the front wheel. Steering is also how you **balance**: steer *toward* the side you're falling to catch it, at any speed. Stop steering and the bike tips over within a few seconds (Normal/Hard; on Easy it holds itself up at speed). Holding full lock tips you over in about a second. |
 | Steerer | Pull the hand out of range | Steering eases to straight and the HUD warns you. You can't get up after a crash without the hand present. |
-| Pedaller (stationary bike) | Pedal faster or slower | Speed = cadence × 0.085 m/s per RPM (90 RPM ≈ 27.5 km/h) |
-| Pedaller | Stop pedalling | The bike coasts and slows. Below ~6 km/h it wobbles and tips over. |
+| Pedaller (stationary bike) | Pedal faster or slower | Speed = cadence × 0.105 m/s per RPM (90 RPM ≈ 34 km/h) |
+| Pedaller | Stop pedalling | The bike brakes quickly; below ~9 km/h it wobbles and tips over (about 4 s from cruising speed). |
 
 **Getting back up after a crash** (both players, about 2 s): the pedaller pedals at ≥ 30 RPM **and** the steerer holds steering centred (within ±0.2). The ring fills while both are held and drains if either lets go. You respawn a few metres back, in a lane with no obstacle, with your foot down. Pedal off to start again.
 
@@ -16,7 +16,7 @@
 | Input | Action |
 |---|---|
 | Left stick X | Steer |
-| **A** (tap) | One pedal stroke. Tap faster to pedal faster: 3 taps/s ≈ 90 RPM ≈ 27 km/h. Stop tapping and the bike coasts, then falls. |
+| **A** (tap) | One pedal stroke. Tap faster to pedal faster: 3 taps/s ≈ 90 RPM ≈ 34 km/h. Stop tapping and the bike coasts, then falls. |
 | Y | 1st / 3rd person camera |
 | Start | Pause |
 | Back / Select | Quick reset (debug) |

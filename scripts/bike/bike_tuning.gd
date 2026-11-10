@@ -17,18 +17,21 @@ const PATH := "res://data/bike_tuning.tres"
 @export_range(0.1, 0.6, 0.01) var collision_half_width_m: float = 0.28
 
 @export_group("Pedalling -> speed")
-## Bike speed (m/s) per crank RPM. 0.085 => 90 RPM ~ 27.5 km/h.
-@export_range(0.02, 0.2, 0.001) var speed_per_rpm: float = 0.085
+## Bike speed (m/s) per crank RPM. 0.105 => 90 RPM ~ 34 km/h.
+@export_range(0.02, 0.2, 0.001) var speed_per_rpm: float = 0.105
 ## Cadence above this is ignored (stops tap-mashing from going silly).
 @export_range(60.0, 250.0, 1.0) var max_cadence_rpm: float = 150.0
 ## How fast speed chases the pedalling target speed (1/s).
-@export_range(0.1, 5.0, 0.05) var pedal_response: float = 0.9
+@export_range(0.1, 5.0, 0.05) var pedal_response: float = 1.1
 ## Cap on forward acceleration from pedalling (m/s^2).
-@export_range(0.5, 6.0, 0.1) var max_accel: float = 2.5
+@export_range(0.5, 6.0, 0.1) var max_accel: float = 3.0
 ## Speed lost per second while coasting (pedalling slower than the bike is moving).
-@export_range(0.0, 3.0, 0.01) var coast_decel: float = 0.55
+@export_range(0.0, 3.0, 0.01) var coast_decel: float = 1.0
 ## Air drag while coasting: decel = coast_decel + drag * v^2.
-@export_range(0.0, 0.05, 0.0005) var coast_drag: float = 0.006
+@export_range(0.0, 0.05, 0.0005) var coast_drag: float = 0.008
+## Extra braking when nobody is pedalling at all (0 RPM), so a stopped pedaller
+## makes the bike slow down and fall within a few seconds (m/s^2).
+@export_range(0.0, 5.0, 0.05) var stop_brake: float = 1.2
 
 @export_group("Steering")
 ## Max front-wheel angle at walking speed.
@@ -43,23 +46,28 @@ const PATH := "res://data/bike_tuning.tres"
 
 @export_group("Balance")
 ## Scales gravity's tipping torque. 1 = real bike, lower = slower falls (assist).
-@export_range(0.05, 1.5, 0.01) var gravity_scale: float = 0.4
+@export_range(0.05, 1.5, 0.01) var gravity_scale: float = 0.5
 ## Self-righting (trail + gyroscope) strength at stable_speed and above (1/s^2).
-## Must beat gravity_scale * 9.81 / com_height_m to be hands-free stable.
-@export_range(0.0, 20.0, 0.1) var self_stability: float = 6.5
-## Below this speed there is no self-righting at all: wobbly zone (m/s). ~6 km/h.
-@export_range(0.2, 5.0, 0.05) var wobble_speed: float = 1.7
+## Must beat gravity_scale * 9.81 / com_height_m to be hands-free stable. Default
+## is below that (2.9 < 4.9), so on Normal someone always has to balance: stop
+## steering and the bike falls in a few seconds. Easy assist (x1.5) is above it.
+@export_range(0.0, 20.0, 0.1) var self_stability: float = 1.0
+## Below this speed there is no self-righting at all: wobbly zone (m/s). ~9 km/h.
+@export_range(0.2, 5.0, 0.05) var wobble_speed: float = 2.5
 ## At and above this speed self-righting is full strength (m/s).
-@export_range(1.0, 12.0, 0.1) var stable_speed: float = 5.0
+@export_range(1.0, 12.0, 0.1) var stable_speed: float = 6.0
 ## Damping of lean rate (1/s).
 @export_range(0.0, 10.0, 0.05) var lean_damping: float = 2.2
 ## Random wobble at standstill (rad/s^2). Fades out as you reach wobble_speed.
 @export_range(0.0, 5.0, 0.01) var wobble_noise: float = 0.9
+## Small random wobble at every speed (rad/s^2), so a bike nobody steers drifts off
+## balance instead of balancing perfectly forever.
+@export_range(0.0, 2.0, 0.01) var speed_wobble: float = 0.35
 ## Lean angle that counts as a fall.
-@export_range(15.0, 80.0, 0.5) var fall_angle_deg: float = 42.0
+@export_range(15.0, 80.0, 0.5) var fall_angle_deg: float = 40.0
 ## Below this speed for stall_fall_s the bike tips over no matter what.
-@export_range(0.0, 2.0, 0.01) var stall_speed: float = 0.35
-@export_range(0.2, 5.0, 0.05) var stall_fall_s: float = 1.2
+@export_range(0.0, 2.0, 0.01) var stall_speed: float = 0.6
+@export_range(0.2, 5.0, 0.05) var stall_fall_s: float = 0.6
 
 @export_group("Start / foot down")
 ## While starting (foot on the ground) the bike stays upright until this speed.
@@ -75,11 +83,31 @@ const PATH := "res://data/bike_tuning.tres"
 ## Sliding friction while on the ground (m/s^2).
 @export_range(0.5, 20.0, 0.1) var ground_friction: float = 7.0
 ## Speed kept when you smack a rail or obstacle.
-@export_range(0.0, 1.0, 0.01) var impact_speed_keep: float = 0.25
+@export_range(0.0, 1.0, 0.01) var impact_speed_keep: float = 0.4
 ## Lean-rate kick from riding over a pothole (rad/s).
 @export_range(0.0, 3.0, 0.01) var pothole_kick: float = 0.9
 ## Speed kept after a pothole.
 @export_range(0.3, 1.0, 0.01) var pothole_speed_keep: float = 0.82
+
+@export_group("Crash effects (visual only)")
+## Rider is thrown off with this share of the bike's speed on rail/obstacle hits.
+@export_range(0.0, 1.5, 0.01) var rider_throw_keep: float = 0.85
+## Upward launch speed of the rider on a hard hit (m/s).
+@export_range(0.0, 8.0, 0.1) var rider_throw_up: float = 3.6
+## Tumble rate of the thrown rider (rad/s).
+@export_range(0.0, 20.0, 0.1) var rider_tumble: float = 7.0
+## Rider throw strength for plain balance falls (0 = stays on the bike).
+@export_range(0.0, 1.0, 0.01) var soft_fall_throw: float = 0.35
+## The bike spins round on the ground after a hard hit (deg/s at the start).
+@export_range(0.0, 900.0, 5.0) var crash_spin_deg_s: float = 320.0
+## The bike bounces up on a hard hit (m/s).
+@export_range(0.0, 5.0, 0.05) var crash_hop: float = 1.8
+## Slow motion right after a hard hit: time scale and real-time length (s).
+@export_range(0.05, 1.0, 0.01) var slowmo_scale: float = 0.3
+@export_range(0.0, 2.0, 0.05) var slowmo_s: float = 0.6
+## Camera shake on a hard hit (0..1) and on a plain fall.
+@export_range(0.0, 1.0, 0.01) var shake_impact: float = 1.0
+@export_range(0.0, 1.0, 0.01) var shake_fall: float = 0.45
 
 
 static func load_default() -> BikeTuning:

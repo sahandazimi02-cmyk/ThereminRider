@@ -30,6 +30,8 @@ func _run() -> void:
 	_test_osc()
 	_test_cadence()
 	_test_road()
+	_test_fall_times()
+	await _test_crash_fx()
 	await _test_endless()
 	await _test_course()
 	print("=== %s (%d failure%s) ===" % ["OK" if failures == 0 else "FAILED", failures, "" if failures == 1 else "s"])
@@ -116,12 +118,100 @@ func _test_road() -> void:
 	w.queue_free()
 
 
+## Pure bike physics (no road): how long until the bike falls when the riders
+## stop doing their job. Cruise = 90 RPM steady state.
+func _test_fall_times() -> void:
+	print("[fall times]")
+	var t := BikeTuning.load_default()
+	var cruise := 90.0 * t.speed_per_rpm
+	var stop_pedal := _fall_time(t, cruise, 0.0, "balance")
+	var hands_off := _fall_time(t, cruise, 90.0, "none")
+	var full_steer := _fall_time(t, cruise, 90.0, "full")
+	print("    cruise %.1f km/h: stop pedalling %.1f s, hands off %.1f s, full steer %.1f s" % [
+			cruise * 3.6, stop_pedal, hands_off, full_steer])
+	_check(stop_pedal > 1.5 and stop_pedal < 6.5, "stop pedalling falls in 1.5-6.5 s (%.1f s)" % stop_pedal)
+	_check(hands_off > 1.5 and hands_off < 7.0, "no steering at all falls in 1.5-7 s (%.1f s)" % hands_off)
+	_check(full_steer < 3.0, "holding full steer falls in < 3 s (%.1f s)" % full_steer)
+
+
+## steer_mode: "balance" = simple balancing rider, "none" = steer 0, "full" = steer +1.
+func _fall_time(t: BikeTuning, start_speed: float, cadence: float, steer_mode: String) -> float:
+	var bike := Bike.new()
+	bike.tuning = t
+	bike.assist_scale = GameSession.ASSIST_SCALES[GameSession.Assist.NORMAL]
+	bike.noise_seed = 777
+	add_child(bike)
+	bike.respawn(Vector3.ZERO, 0.0)
+	bike.state = Bike.State.RIDING
+	bike.speed = start_speed
+	bike.lean = deg_to_rad(0.5)
+	var dt := 1.0 / 60.0
+	var time := 0.0
+	while time < 30.0 and bike.is_upright():
+		var steer := 0.0
+		if steer_mode == "balance":
+			steer = clampf(3.0 * bike.lean + 0.6 * bike.lean_rate, -1.0, 1.0)
+		elif steer_mode == "full":
+			steer = 1.0
+		bike.step(dt, steer, cadence)
+		time += dt
+	bike.queue_free()
+	return time
+
+
+## A hard hit throws the rider, the rider lands and settles, knocked cones stop
+## blocking the road, and getting up puts the rider back on the bike.
+func _test_crash_fx() -> void:
+	print("[crash effects]")
+	RiderInput.override_enabled = true
+	var game := _make_game(GameSession.Mode.ENDLESS)
+	# Ride until we're up to speed (the bot gets back up if it falls on the way).
+	for _f in 60 * 20:
+		_bot(game, 90.0)
+		await get_tree().physics_frame
+		if game.phase == Game.Phase.PLAY and game.bike.state == Bike.State.RIDING and game.bike.speed > 7.0:
+			break
+	var model := game.bike.model
+	var start := model.rider_focus()
+	print("    before hit: %s, %.1f km/h, rider hip %.2f m up, crashes so far %d" % [game.bike.state_name(), game.bike.speed * 3.6, start.y - game.bike.global_position.y, game.crashes])
+	game.bike.crash("test hit", 1.0, game.bike.right())
+	_check(model.thrown and game.bike.impact, "hard hit throws the rider off")
+	var peak := start.y
+	for _f in 60 * 3:
+		RiderInput.override_cadence = 0.0
+		RiderInput.override_steer = 0.0
+		await get_tree().physics_frame
+		peak = maxf(peak, model.rider_focus().y)
+	var landed := model.rider_focus()
+	print("    rider: peak %.2f m, landed %.1f m from the hit, hip at %.2f m" % [peak - game.bike.global_position.y, (landed - start).length(), landed.y - game.bike.global_position.y])
+	_check(peak > start.y + 0.3, "rider flies up")
+	_check(landed.y - game.bike.global_position.y < 0.3, "rider ends up lying on the ground")
+	var cones: Obstacle = null
+	for o in game.road.obstacles:
+		if o.kind == Obstacle.Kind.CONES and o.node != null:
+			cones = o
+			break
+	if cones != null:
+		game.road.knock(cones, Vector3(0, 0, -8))
+		_check(game.road.is_clear(cones.s, cones.lateral, 1.0) and game.road.check_hit(cones.s, cones.lateral, 0.5, 0.3) == null, "knocked cones no longer block the road")
+	for _f in 60 * 6:
+		RiderInput.override_steer = 0.0
+		RiderInput.override_cadence = 60.0
+		await get_tree().physics_frame
+		if game.phase == Game.Phase.PLAY:
+			break
+	_check(game.phase == Game.Phase.PLAY and not model.thrown, "get-up puts the rider back on the bike")
+	game.queue_free()
+	await get_tree().process_frame
+
+
 func _make_game(mode: GameSession.Mode) -> Game:
 	var game: Game = load("res://scenes/game.tscn").instantiate()
 	game.skip_countdown = true
 	game.force_mode = mode
 	game.world_seed = 777
 	game.record_scores = false
+	game.crash_slowmo = false
 	# RIDER_ASSIST=0/1/2 tries Easy/Normal/Hard (default Normal).
 	var a := OS.get_environment("RIDER_ASSIST")
 	GameSession.assist = (int(a) if a.is_valid_int() else 1) as GameSession.Assist
@@ -129,47 +219,74 @@ func _make_game(mode: GameSession.Mode) -> Game:
 	return game
 
 
-## Simple rider AI: lean toward where we want to go, steer toward the lean.
+## Rider AI. Unstable bike (Normal/Hard at any speed, everything when slow):
+## lane error -> lateral accel wanted -> the lean that accel needs -> the
+## lateral accel (via steering) that drives the lean there. Self-stable bike
+## (Easy at speed): just steer along the path and let the bike balance itself.
 func _bot(game: Game, cadence: float) -> void:
 	var bike := game.bike
 	var road := game.road
+	RiderInput.override_cadence = cadence
 	if game.phase == Game.Phase.FALLEN:
 		RiderInput.override_steer = 0.0
 		RiderInput.override_cadence = 60.0
 		return
-	# Pick a lane with nothing in it for the next 40 m.
+	# Pick a lane with nothing in it for the next 60 m.
 	var blocked := func(lane: int) -> bool:
 		for o in road.obstacles:
-			if o.s > game.bike_s - 1.0 and o.s < game.bike_s + 40.0 and road.lane_of(o.lateral) == lane:
+			if o.s > game.bike_s - 1.0 and o.s < game.bike_s + 60.0 and road.lane_of(o.lateral) == lane:
 				return true
 		return false
 	if blocked.call(_bot_lane) and not blocked.call(1 - _bot_lane):
 		_bot_lane = 1 - _bot_lane
 	var target := road.lane_center(_bot_lane)
-	# Path following: aim at a point ahead in the target lane.
-	var aim := road.path.point_at(game.bike_s + maxf(6.0, bike.speed * 1.4), target)
-	var to := aim - bike.position
-	var desired_yaw := atan2(-to.x, -to.z)
-	var heading_err := wrapf(bike.yaw - desired_yaw, -PI, PI)  # + = need to go right
-	var steer_path := 2.5 * heading_err - 0.25 * (bike.lean - bike.lean_eq)
-	# Balance (below the self-stable speed): path -> desired turn rate -> the
-	# lean that turn needs; steer for the turn plus toward any extra lean.
+	if bike.state == Bike.State.FOOT_DOWN or bike.speed < 4.0:
+		target = road.lane_center(road.lane_of(game.bike_lat))  # launch straight, change lanes later
+
 	var t := bike.tuning
 	var v := maxf(bike.speed, 0.5)
-	var yaw_rate_des := clampf(1.2 * heading_err, -0.8, 0.8)
-	var lean_des := clampf(atan(v * yaw_rate_des / Bike.G), -0.35, 0.35)
 	var max_steer := deg_to_rad(lerpf(t.max_steer_deg_slow, t.max_steer_deg_fast, smoothstep(0.0, t.fast_speed, bike.speed)))
-	var ff := clampf(atan(t.wheelbase_m * yaw_rate_des / v) / max_steer, -1.0, 1.0)
-	ff = signf(ff) * pow(absf(ff), 1.0 / t.steer_expo)
-	var steer_bal := ff + 3.0 * (bike.lean - lean_des) + 0.6 * bike.lean_rate
 	var tip := t.gravity_scale * bike.assist_scale.y * Bike.G / t.com_height_m
+	var instab := tip - bike.stability_k
+
+	# Path following (aim at a point ahead in the target lane).
+	var aim := road.path.point_at(game.bike_s + maxf(6.0, bike.speed * 1.4), target)
+	var to := aim - bike.position
+	var heading_err := wrapf(bike.yaw - atan2(-to.x, -to.z), -PI, PI)  # + = need to go right
+	var steer_path := 2.5 * heading_err - 0.25 * (bike.lean - bike.lean_eq)
+
+	var steer_bal := 0.0
+	var lean_des := 0.0
+	if instab > 0.3:
+		# Lane keeping plus the road's own curve (looked up a little ahead).
+		var rel := wrapf(road.path.yaw_at(game.bike_s) - bike.yaw, -PI, PI)  # + = pointing right of the road
+		var lat_vel := v * sin(rel)
+		var pv := v * 0.8
+		var curv := wrapf(road.path.yaw_at(game.bike_s + pv) - road.path.yaw_at(game.bike_s + pv + 2.0), -PI, PI) / 2.0
+		var a_ref := -0.3 * (game.bike_lat - target) - 0.8 * lat_vel + v * v * curv
+		lean_des = clampf(atan(a_ref / Bike.G), -0.4, 0.4)
+		# Small-angle lean model: lean_acc = (tip - k) * (lean - a_lat/g) - d * lean_rate.
+		# Choose a_lat for a damped return to lean_des, then undo the steering expo.
+		var omega := 6.0
+		var a_over_g := bike.lean + (omega * omega * (bike.lean - lean_des) + (1.6 * omega - t.lean_damping) * bike.lean_rate) / instab
+		var delta := atan(clampf(a_over_g, -1.0, 1.0) * Bike.G * t.wheelbase_m / (v * v))
+		var u := clampf(delta / max_steer, -1.0, 1.0)
+		steer_bal = signf(u) * pow(absf(u), 1.0 / t.steer_expo)
+	else:
+		var yaw_rate_des := clampf(1.2 * heading_err, -0.8, 0.8)
+		lean_des = clampf(atan(v * yaw_rate_des / Bike.G), -0.35, 0.35)
+		var ff := clampf(atan(t.wheelbase_m * yaw_rate_des / v) / max_steer, -1.0, 1.0)
+		ff = signf(ff) * pow(absf(ff), 1.0 / t.steer_expo)
+		steer_bal = ff + 3.0 * (bike.lean - lean_des) + 0.6 * bike.lean_rate
 	var w := clampf((bike.stability_k - tip) * 0.5 + 0.5, 0.0, 1.0)
+	if bike.state == Bike.State.FOOT_DOWN:
+		w = 1.0  # foot on the ground: no balancing, just point the bike
 	RiderInput.override_steer = clampf(lerpf(steer_bal, steer_path, w), -1.0, 1.0)
-	RiderInput.override_cadence = cadence
 	if trace and Engine.get_physics_frames() % 20 == 0:
-		print("    t=%.1f st=%s v=%.1f lean=%.1f eq=%.1f k=%.1f w=%.2f s=%.1f lat=%.2f steer=%.2f" % [
+		print("    t=%.1f st=%s v=%.1f lean=%.1f want=%.1f eq=%.1f k=%.1f w=%.2f s=%.1f lat=%.2f steer=%.2f" % [
 				Engine.get_physics_frames() / 60.0, bike.state_name(), bike.speed, rad_to_deg(bike.lean),
-				rad_to_deg(bike.lean_eq), bike.stability_k, w, game.bike_s, game.bike_lat, RiderInput.override_steer])
+				rad_to_deg(lean_des), rad_to_deg(bike.lean_eq), bike.stability_k, w, game.bike_s, game.bike_lat,
+				RiderInput.override_steer])
 
 
 func _test_endless() -> void:
@@ -217,6 +334,11 @@ func _test_course() -> void:
 	RiderInput.override_enabled = true
 	_bot_lane = 1
 	var game := _make_game(GameSession.Mode.COURSE)
+	var reasons := {}
+	game.bike.crashed.connect(func(r: String) -> void:
+		reasons[r] = int(reasons.get(r, 0)) + 1
+		if trace:
+			print("    CRASH %s at s=%.0f lat=%.2f lane=%d v=%.1f" % [r, game.bike_s, game.bike_lat, _bot_lane, game.bike.speed]))
 	_check(game.road.finish_s > 1000.0, "course has a finish line (%.0f m)" % game.road.finish_s)
 	var finished := false
 	for _f in 60 * 400:
@@ -226,7 +348,11 @@ func _test_course() -> void:
 			finished = true
 			break
 	print("    course: time %s, crashes %d, reached %.0f m" % [UiKit.format_time(game.elapsed), game.crashes, game.bike_s])
+	if not reasons.is_empty():
+		print("    crash reasons: ", reasons)
 	_check(finished, "bot finishes the course")
+	_check(game.crashes <= 6, "bot course crashes <= 6 (%d)" % game.crashes)
 	game.get_tree().paused = false
 	game.queue_free()
 	await get_tree().process_frame
+

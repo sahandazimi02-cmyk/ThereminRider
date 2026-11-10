@@ -14,6 +14,8 @@ var force_mode := -1
 var world_seed := 0
 ## Tests turn this off so bot runs don't overwrite the players' best scores.
 var record_scores := true
+## Tests turn this off so crash slow motion doesn't change the test timing.
+var crash_slowmo := true
 
 var bike_tuning: BikeTuning
 var road_tuning: RoadTuning
@@ -43,6 +45,8 @@ var new_record := false
 
 var _countdown := 0.0
 var _last_shown_count := -1
+var _slowmo_end_ms := 0
+var _prev_bike_state: Bike.State = Bike.State.FOOT_DOWN
 
 
 func _ready() -> void:
@@ -62,6 +66,7 @@ func _ready() -> void:
 	bike.name = "Bike"
 	bike.tuning = bike_tuning
 	bike.assist_scale = GameSession.assist_scale()
+	bike.noise_seed = world_seed
 	add_child(bike)
 	bike.crashed.connect(_on_bike_crashed)
 
@@ -83,6 +88,8 @@ func _ready() -> void:
 
 
 func _start_run() -> void:
+	_end_slowmo()
+	road.reset_obstacles()
 	var s0 := road.start_s()
 	bike.respawn(road.path.point_at(s0, road.lane_center(1)), road.path.yaw_at(s0))
 	road.path.reset_hint(s0)
@@ -149,6 +156,39 @@ func _physics_process(dt: float) -> void:
 	road.update_around(bike_s)
 	_update_ground()
 	_update_hud()
+	if bike.state == Bike.State.DOWN and _prev_bike_state == Bike.State.FALLING:
+		# Bike slams into the ground.
+		CrashFx.dust(self, bike.global_position + Vector3.UP * 0.2, 18 if bike.impact else 10)
+		cam.add_trauma(0.3 if bike.impact else 0.2)
+	_prev_bike_state = bike.state
+
+
+func _process(_delta: float) -> void:
+	if _slowmo_end_ms <= 0:
+		return
+	var left := float(_slowmo_end_ms - Time.get_ticks_msec())
+	if left <= 0.0 or get_tree().paused:
+		_end_slowmo()
+		return
+	# Hold the slow-down, then ease back to normal speed over the last 40 %.
+	var total := maxf(bike_tuning.slowmo_s * 1000.0, 1.0)
+	Engine.time_scale = lerpf(1.0, bike_tuning.slowmo_scale, smoothstep(0.0, 0.4, left / total))
+
+
+func _exit_tree() -> void:
+	_end_slowmo()
+
+
+func _start_slowmo() -> void:
+	if not crash_slowmo or bike_tuning.slowmo_s <= 0.0:
+		return
+	Engine.time_scale = bike_tuning.slowmo_scale
+	_slowmo_end_ms = Time.get_ticks_msec() + int(bike_tuning.slowmo_s * 1000.0)
+
+
+func _end_slowmo() -> void:
+	_slowmo_end_ms = 0
+	Engine.time_scale = 1.0
 
 
 func _track() -> void:
@@ -167,15 +207,31 @@ func _check_collisions() -> void:
 	if absf(bike_lat) > limit:
 		var side := signf(bike_lat)
 		bike.position = road.path.point_at(bike_s, side * limit)
-		bike.crash("hit the rail", -side)
+		var yaw := road.path.yaw_at(bike_s)
+		var road_right := Vector3(cos(yaw), 0.0, -sin(yaw))
+		CrashFx.burst(self, bike.position + road_right * side * 0.3 + Vector3.UP * 0.6, "spark", 40, 6.0, 0.04, 0.6, true)
+		bike.crash("hit the rail", -side, -road_right * side)
 		return
 	var o := road.check_hit(bike_s, bike_lat, bike_tuning.collision_half_length_m, bike_tuning.collision_half_width_m)
 	if o != null:
 		if o.crashes:
-			bike.crash("hit the " + o.kind_name(), signf(bike_lat - o.lateral))
+			var push := bike.forward() * bike.speed
+			var away := signf(bike_lat - o.lateral)
+			if away == 0.0:
+				away = 1.0
+			var hit_pos := bike.position + bike.forward() * 0.6 + Vector3.UP * 0.5
+			if o.kind == Obstacle.Kind.CAR:
+				CrashFx.burst(self, hit_pos, "spark", 30, 5.0, 0.04, 0.5, true)
+				CrashFx.burst(self, hit_pos + Vector3.UP * 0.3, "car_glass", 16, 4.0, 0.06, 1.0)
+			else:
+				CrashFx.burst(self, hit_pos, "cone" if o.kind == Obstacle.Kind.CONES else "barrier_red", 18, 4.5, 0.07, 1.0)
+			road.knock(o, push)
+			bike.crash("hit the " + o.kind_name(), away, bike.right() * away * 0.5)
 		else:
 			o.hit = true
 			bike.hit_pothole()
+			CrashFx.burst(self, bike.position + Vector3.UP * 0.1, "debris", 12, 2.5, 0.05, 0.7)
+			cam.add_trauma(0.35)
 			hud.message("POTHOLE!", "", 0.8)
 	if mode == GameSession.Mode.COURSE and road.finish_s > 0.0 and bike_s >= road.finish_s:
 		_finish()
@@ -190,7 +246,15 @@ func _on_bike_crashed(reason: String) -> void:
 	phase = Phase.FALLEN
 	down_time = 0.0
 	reset_progress = 0.0
-	hud.message("CRASH!", reason.capitalize(), 0.0)
+	if bike.impact:
+		hud.slam("CRASH!", reason.capitalize())
+		hud.flash(Palette.color("crash_flash"), 0.5)
+		cam.add_trauma(bike_tuning.shake_impact)
+		_start_slowmo()
+	else:
+		hud.slam("DOWN!", reason.capitalize())
+		hud.flash(Palette.color("crash_flash"), 0.2)
+		cam.add_trauma(bike_tuning.shake_fall)
 
 
 func _update_get_up(dt: float) -> void:

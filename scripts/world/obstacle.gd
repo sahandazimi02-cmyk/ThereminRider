@@ -33,8 +33,8 @@ static func make(k: Kind, s_m: float, lateral_m: float, lane_width: float) -> Ob
 			o.half_along = 2.1
 			o.half_lateral = 0.85
 		Kind.POTHOLE:
-			o.half_along = 0.45
-			o.half_lateral = 0.5
+			o.half_along = 0.75
+			o.half_lateral = 0.68
 			o.crashes = false
 	return o
 
@@ -54,6 +54,8 @@ func overlaps(bike_s: float, bike_lat: float, bike_half_len: float, bike_half_wi
 
 
 ## Builds the visual. Local origin on the road, forward -Z, across X.
+## Cones and barriers are built from separate "piece" nodes (direct children)
+## so a crash can knock each piece flying.
 func build_node(lane_width: float, rng: RandomNumberGenerator) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Obstacle_" + kind_name()
@@ -61,20 +63,28 @@ func build_node(lane_width: float, rng: RandomNumberGenerator) -> Node3D:
 		Kind.CONES:
 			var spread := half_lateral
 			for i in 3:
-				var x := lerpf(-spread, spread, float(i) / 2.0)
-				MeshKit.box(root, Vector3(0.36, 0.04, 0.36), Vector3(x, 0.02, 0.0), "cone")
-				MeshKit.cylinder(root, 0.17, 0.03, 0.62, Vector3(x, 0.04, 0.0), "cone")
-				MeshKit.cylinder(root, 0.115, 0.095, 0.08, Vector3(x, 0.32, 0.0), "cone_band")
+				var cone := Node3D.new()
+				cone.position = Vector3(lerpf(-spread, spread, float(i) / 2.0), 0.0, 0.0)
+				root.add_child(cone)
+				MeshKit.box(cone, Vector3(0.36, 0.04, 0.36), Vector3(0, 0.02, 0.0), "cone")
+				MeshKit.cylinder(cone, 0.17, 0.03, 0.62, Vector3(0, 0.04, 0.0), "cone")
+				MeshKit.cylinder(cone, 0.115, 0.095, 0.08, Vector3(0, 0.32, 0.0), "cone_band")
 		Kind.BARRIER:
 			var w := half_lateral * 2.0
 			for x: float in [-half_lateral * 0.85, half_lateral * 0.85]:
-				MeshKit.box(root, Vector3(0.06, 0.9, 0.06), Vector3(x, 0.45, 0.0), "barrier_white")
-				MeshKit.box(root, Vector3(0.12, 0.05, 0.5), Vector3(x, 0.025, 0.0), "rail_post")
+				var leg := Node3D.new()
+				leg.position = Vector3(x, 0.0, 0.0)
+				root.add_child(leg)
+				MeshKit.box(leg, Vector3(0.06, 0.9, 0.06), Vector3(0, 0.45, 0.0), "barrier_white")
+				MeshKit.box(leg, Vector3(0.12, 0.05, 0.5), Vector3(0, 0.025, 0.0), "rail_post")
+			var board := Node3D.new()
+			board.position = Vector3(0.0, 0.72, 0.0)
+			root.add_child(board)
 			var stripes := 6
 			for i in stripes:
 				var c := "barrier_red" if i % 2 == 0 else "barrier_white"
 				var sw := w / float(stripes)
-				MeshKit.box(root, Vector3(sw, 0.28, 0.05), Vector3(-w * 0.5 + sw * (float(i) + 0.5), 0.72, 0.0), c)
+				MeshKit.box(board, Vector3(sw, 0.28, 0.05), Vector3(-w * 0.5 + sw * (float(i) + 0.5), 0.0, 0.0), c)
 		Kind.CAR:
 			var colors := ["car_a", "car_b", "car_c"]
 			var body: String = colors[rng.randi() % colors.size()]
@@ -87,6 +97,23 @@ func build_node(lane_width: float, rng: RandomNumberGenerator) -> Node3D:
 					wheel.rotation = Vector3(0, 0, PI * 0.5)
 					wheel.position = Vector3(wx, 0.33, wz)
 		Kind.POTHOLE:
-			MeshKit.cylinder(root, half_lateral, half_lateral * 0.9, 0.012, Vector3(0, 0.004, 0), "pothole", 9) \
-					.scale = Vector3(1.0, 1.0, half_along / half_lateral)
+			# Broken-asphalt rim, near-black hole, pitch-black centre and rubble so
+			# it reads clearly from a distance. Two offset ovals = irregular edge.
+			var stretch := half_along / half_lateral
+			var r := half_lateral
+			for ring: Array in [[1.22, 0.003, 0.006, "pothole_rim"], [1.0, 0.004, 0.012, "pothole"], [0.6, 0.006, 0.012, "pothole_deep"]]:
+				var k: float = ring[0]
+				var y: float = ring[1]
+				var h: float = ring[2]
+				var id: String = ring[3]
+				var a := MeshKit.cylinder(root, r * k, r * k, h, Vector3(0, y, 0), id, 9)
+				a.scale = Vector3(1.0, 1.0, stretch)
+				var b := MeshKit.cylinder(root, r * k * 0.82, r * k * 0.82, h, Vector3(r * 0.22, y, -half_along * 0.25), id, 7)
+				b.scale = Vector3(1.0, 1.0, stretch)
+				b.rotation.y = 0.6
+			for i in 7:
+				var ang := TAU * float(i) / 7.0 + rng.randf() * 0.5
+				var p := Vector3(cos(ang) * r * 1.15, 0.0, sin(ang) * half_along * 1.15)
+				var chunk := MeshKit.box(root, Vector3(0.12, 0.05, 0.09) * rng.randf_range(0.7, 1.4), p + Vector3(0, 0.025, 0), "pothole_rim")
+				chunk.rotation.y = rng.randf() * TAU
 	return root

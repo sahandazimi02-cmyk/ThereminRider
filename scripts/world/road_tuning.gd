@@ -79,6 +79,21 @@ const PATH := "res://data/road_tuning.tres"
 @export_range(0.0, 1.0, 0.01) var fp_roll_factor: float = 0.65
 @export_range(-40.0, 10.0, 0.5) var fp_pitch_deg: float = -9.0
 @export_range(40.0, 110.0, 1.0) var fp_fov_deg: float = 78.0
+## Extra field of view at speed_fov_full_mps and above (sense of speed).
+@export_range(0.0, 30.0, 0.5) var speed_fov_boost_deg: float = 8.0
+@export_range(2.0, 20.0, 0.1) var speed_fov_full_mps: float = 10.0
+
+@export_group("Crash camera")
+## After a fall the camera pulls back to watch the crash (both camera modes).
+@export_range(2.0, 15.0, 0.1) var crash_cam_distance_m: float = 6.5
+@export_range(0.5, 8.0, 0.1) var crash_cam_height_m: float = 3.0
+## Slow orbit around the crash (deg/s).
+@export_range(0.0, 60.0, 0.5) var crash_cam_orbit_deg_s: float = 14.0
+## Camera shake at full strength: position offset (m) and roll (deg).
+@export_range(0.0, 1.5, 0.01) var shake_offset_m: float = 0.32
+@export_range(0.0, 20.0, 0.1) var shake_roll_deg: float = 5.0
+## How fast shake fades (strength per second).
+@export_range(0.1, 5.0, 0.05) var shake_decay: float = 1.4
 
 
 static func load_default() -> RoadTuning:

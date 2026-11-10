@@ -33,6 +33,7 @@ func _ready() -> void:
 
 
 func open() -> void:
+	Engine.time_scale = 1.0  # never leave crash slow motion running under the menu
 	if _results:
 		return
 	if _root.visible:

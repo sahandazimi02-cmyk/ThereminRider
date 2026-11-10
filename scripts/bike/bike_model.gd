@@ -25,6 +25,10 @@ const THIGH := 0.47
 const SHIN := 0.46
 ## First-person eye point (bike-local, before lean).
 const EYE := Vector3(0.0, 1.62, -0.12)
+# Thrown-rider ragdoll-lite (visual only).
+const RIDER_PIVOT := Vector3(0.0, 1.0, 0.24)
+const RIDER_REST_H := 0.13
+const RIDER_GROUND_FRICTION := 5.0
 
 var lean_pivot: Node3D
 var steer_node: Node3D
@@ -32,10 +36,18 @@ var rear_wheel: Node3D
 var front_wheel: Node3D
 var crank_node: Node3D
 var head_group: Node3D
+## Every rider mesh lives under this node so the rider can fly off the bike.
+var rider: Node3D
+var thrown := false
 
 var _legs: Array = []  # [thigh, shin, foot] per side
 var _arms: Array[MeshInstance3D] = []
 var _pedals: Array[MeshInstance3D] = []
+var _r_pos := Vector3.ZERO
+var _r_vel := Vector3.ZERO
+var _r_basis := Basis.IDENTITY
+var _r_ang := Vector3.ZERO
+var _ground_y := 0.0
 
 
 func _ready() -> void:
@@ -85,23 +97,27 @@ func _build() -> void:
 		MeshKit.tube_between(steer_node, BAR + off + Vector3(x * 0.8, 0, 0), BAR + off + Vector3(x * 1.1, 0, 0), 0.022, "bike_dark")
 	front_wheel = _wheel(steer_node, f_axle + off)
 
-	# Rider
+	# Rider (its own node, identity transform under the lean pivot, so rider
+	# coordinates are the same as lean-pivot coordinates until it's thrown).
+	rider = Node3D.new()
+	rider.name = "Rider"
+	lean_pivot.add_child(rider)
 	var hip_c := HIP
 	var sh_c := SHOULDER
-	var torso := MeshKit.tube(lean_pivot, 0.14, "rider_shirt", 8)
+	var torso := MeshKit.tube(rider, 0.14, "rider_shirt", 8)
 	MeshKit.place_tube(torso, hip_c, sh_c)
-	MeshKit.box(lean_pivot, Vector3(0.30, 0.16, 0.24), hip_c + Vector3(0, 0.02, 0), "rider_pants")
+	MeshKit.box(rider, Vector3(0.30, 0.16, 0.24), hip_c + Vector3(0, 0.02, 0), "rider_pants")
 	head_group = Node3D.new()
 	head_group.position = HEAD
-	lean_pivot.add_child(head_group)
+	rider.add_child(head_group)
 	MeshKit.sphere(head_group, 0.105, Vector3.ZERO, "rider_skin")
 	MeshKit.sphere(head_group, 0.12, Vector3(0, 0.04, 0.01), "helmet").scale = Vector3(1.0, 0.75, 1.15)
-	MeshKit.tube_between(lean_pivot, sh_c, HEAD + Vector3(0, -0.08, 0.02), 0.05, "rider_skin")
+	MeshKit.tube_between(rider, sh_c, HEAD + Vector3(0, -0.08, 0.02), 0.05, "rider_skin")
 	for side: float in [-1.0, 1.0]:
-		_arms.append(MeshKit.tube(lean_pivot, 0.045, "rider_shirt"))
-		var thigh := MeshKit.tube(lean_pivot, 0.065, "rider_pants")
-		var shin := MeshKit.tube(lean_pivot, 0.05, "rider_pants")
-		var foot := MeshKit.box(lean_pivot, Vector3(0.09, 0.07, 0.22), Vector3.ZERO, "bike_dark")
+		_arms.append(MeshKit.tube(rider, 0.045, "rider_shirt"))
+		var thigh := MeshKit.tube(rider, 0.065, "rider_pants")
+		var shin := MeshKit.tube(rider, 0.05, "rider_pants")
+		var foot := MeshKit.box(rider, Vector3(0.09, 0.07, 0.22), Vector3.ZERO, "bike_dark")
 		_legs.append([thigh, shin, foot])
 
 	update_pose(0.0, 0.0, 0.0, 0.0)
@@ -137,6 +153,8 @@ func update_pose(lean: float, steer: float, wheel_spin: float, crank: float) -> 
 		var theta := crank + (0.0 if side > 0.0 else PI)
 		var pedal := BB + Vector3(side * PEDAL_X, CRANK_R * cos(theta), -CRANK_R * sin(theta))
 		_pedals[i].position = pedal
+		if thrown:
+			continue  # limbs keep their last pose while the rider flies
 		var hip := HIP + Vector3(side * HIP_X, 0.0, 0.0)
 		var knee := _knee(hip, pedal)
 		var leg: Array = _legs[i]
@@ -146,6 +164,83 @@ func update_pose(lean: float, steer: float, wheel_spin: float, crank: float) -> 
 		var grip_local := BAR - STEER_PIVOT + Vector3(side * BAR_HALF * 0.95, 0.0, 0.0)
 		var grip := steer_xf * grip_local
 		MeshKit.place_tube(_arms[i], SHOULDER + Vector3(side * SHOULDER_X, 0.0, 0.0), grip)
+
+
+## Throws the rider off the bike: world velocity (m/s) and world angular
+## velocity (rad/s). The rider then tumbles, bounces and slides to a stop.
+func throw_rider(velocity: Vector3, angular: Vector3) -> void:
+	if thrown or rider == null:
+		return
+	thrown = true
+	_ground_y = global_position.y
+	var xf := lean_pivot.global_transform
+	_r_pos = xf * RIDER_PIVOT
+	_r_basis = xf.basis.orthonormalized()
+	_r_vel = velocity
+	_r_ang = angular
+	rider.top_level = true
+	_apply_rider()
+
+
+func reset_rider() -> void:
+	thrown = false
+	if rider != null:
+		rider.top_level = false
+		rider.transform = Transform3D.IDENTITY
+
+
+## Where the rider is in the world (hip), thrown or not.
+func rider_focus() -> Vector3:
+	if thrown:
+		return _r_pos
+	return lean_pivot.global_transform * RIDER_PIVOT
+
+
+func _physics_process(dt: float) -> void:
+	if not thrown:
+		return
+	_r_vel.y -= 9.81 * dt
+	_r_pos += _r_vel * dt
+	var w := _r_ang.length()
+	if w > 0.001:
+		_r_basis = (Basis(_r_ang / w, w * dt) * _r_basis).orthonormalized()
+	var floor_y := _ground_y + RIDER_REST_H
+	if _r_pos.y <= floor_y:
+		_r_pos.y = floor_y
+		if _r_vel.y < -1.6:
+			# Bounce.
+			_r_vel.y = -_r_vel.y * 0.3
+			_r_vel.x *= 0.7
+			_r_vel.z *= 0.7
+			_r_ang *= 0.55
+		else:
+			# Sliding: friction, stop tumbling, settle flat on the ground.
+			_r_vel.y = 0.0
+			var flat := Vector3(_r_vel.x, 0.0, _r_vel.z)
+			var sp := flat.length()
+			if sp > 0.0:
+				flat *= maxf(sp - RIDER_GROUND_FRICTION * dt, 0.0) / sp
+			_r_vel = flat
+			_r_ang *= exp(-8.0 * dt)
+			var q := Quaternion(_r_basis).slerp(Quaternion(_lying_basis()), 1.0 - exp(-7.0 * dt))
+			_r_basis = Basis(q)
+	_apply_rider()
+
+
+## Flat on the ground, body along whichever way it's pointing, face down or up.
+func _lying_basis() -> Basis:
+	var along := Vector3(_r_basis.y.x, 0.0, _r_basis.y.z)
+	if along.length() < 0.2:
+		along = Vector3(-_r_basis.z.x, 0.0, -_r_basis.z.z)
+	if along.length() < 0.01:
+		along = Vector3.FORWARD
+	along = along.normalized()
+	var up := Vector3.UP if _r_basis.z.y >= 0.0 else Vector3.DOWN
+	return Basis(along.cross(up), along, up).orthonormalized()
+
+
+func _apply_rider() -> void:
+	rider.global_transform = Transform3D(_r_basis, _r_pos) * Transform3D(Basis.IDENTITY, -RIDER_PIVOT)
 
 
 func set_head_visible(v: bool) -> void:

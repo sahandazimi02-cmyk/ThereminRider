@@ -13,6 +13,8 @@ var debug_label: Label
 var help_label: Label
 
 var _flash_t := 0.0
+var _flash_rect: ColorRect
+var _flash_alpha := 0.0
 
 
 func _ready() -> void:
@@ -21,6 +23,13 @@ func _ready() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+
+	# Full-screen colour flash for crashes (drawn under the text).
+	_flash_rect = ColorRect.new()
+	_flash_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_flash_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flash_rect.color = Color(0, 0, 0, 0)
+	root.add_child(_flash_rect)
 
 	score_label = UiKit.label("", 26)
 	score_label.position = Vector2(24, 18)
@@ -83,6 +92,9 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if _flash_alpha > 0.0:
+		_flash_alpha = maxf(_flash_alpha - delta * 1.6, 0.0)
+		_flash_rect.color.a = _flash_alpha
 	if _flash_t > 0.0:
 		_flash_t -= delta
 		if _flash_t <= 0.0:
@@ -94,6 +106,21 @@ func message(text: String, sub: String = "", duration: float = 0.0) -> void:
 	center_label.text = text
 	sub_label.text = sub
 	_flash_t = duration
+
+
+## Screen flash (fades out by itself).
+func flash(color: Color, strength: float) -> void:
+	_flash_alpha = clampf(strength, 0.0, 1.0)
+	_flash_rect.color = Color(color, _flash_alpha)
+
+
+## Big message that punches in (for crashes).
+func slam(text: String, sub: String = "") -> void:
+	message(text, sub)
+	center_label.pivot_offset = center_label.size * 0.5
+	center_label.scale = Vector2.ONE * 1.8
+	var tw := create_tween()
+	tw.tween_property(center_label, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 func clear_message() -> void:

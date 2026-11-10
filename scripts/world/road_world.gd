@@ -14,6 +14,8 @@ var obstacles: Array[Obstacle] = []
 var difficulty := 0.0
 
 var _rng := RandomNumberGenerator.new()
+## Separate RNG for crash effects so they never change the generated road.
+var _fx_rng := RandomNumberGenerator.new()
 var _chunks: Dictionary = {}  # int -> Node3D
 var _next_obstacle_s := 0.0
 var _last_lane := 1
@@ -72,9 +74,37 @@ func check_hit(s: float, lateral: float, half_len: float, half_wid: float) -> Ob
 
 func is_clear(s: float, lateral: float, clearance: float) -> bool:
 	for o in obstacles:
+		if o.hit and o.crashes:
+			continue  # knocked out of the way
 		if absf(o.s - s) < clearance + o.half_along and absf(o.lateral - lateral) < o.half_lateral + 0.6:
 			return false
 	return true
+
+
+## A crash sends cones/barriers flying (they stop blocking the road). push is
+## the bike's world velocity at impact. Cars stay put.
+func knock(o: Obstacle, push: Vector3) -> void:
+	if o.kind != Obstacle.Kind.CONES and o.kind != Obstacle.Kind.BARRIER:
+		return
+	o.hit = true
+	if o.node == null:
+		return
+	var local_push := o.node.global_basis.inverse() * push
+	for piece in o.node.get_children():
+		if piece is Node3D:
+			var v := local_push * _fx_rng.randf_range(0.5, 1.0) + Vector3(_fx_rng.randf_range(-1.5, 1.5), _fx_rng.randf_range(2.5, 5.0), _fx_rng.randf_range(-1.0, 1.0))
+			var spin := Vector3(_fx_rng.randf_range(-12, 12), _fx_rng.randf_range(-6, 6), _fx_rng.randf_range(-12, 12))
+			CrashFx.knock_piece(piece, v, spin)
+
+
+## Puts every obstacle back (for a restart): knocked ones are rebuilt and
+## potholes can be hit again.
+func reset_obstacles() -> void:
+	for o in obstacles:
+		if o.hit and o.crashes and o.node != null:
+			o.node.queue_free()
+			o.node = null
+		o.hit = false
 
 
 ## Updates generation/streaming for a bike at distance s.
@@ -200,7 +230,7 @@ func _stream_obstacles(s: float) -> void:
 				obstacles.remove_at(i)
 				continue
 			o.node = null
-		elif o.node == null and o.s < s + tuning.view_ahead_m and o.s >= s - keep:
+		elif o.node == null and not (o.hit and o.crashes) and o.s < s + tuning.view_ahead_m and o.s >= s - keep:
 			o.node = o.build_node(tuning.lane_width_m, _rng)
 			var yaw := path.yaw_at(o.s)
 			o.node.transform = Transform3D(Basis(Vector3.UP, yaw), path.point_at(o.s, o.lateral))

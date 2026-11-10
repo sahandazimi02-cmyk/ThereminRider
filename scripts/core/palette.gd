@@ -34,7 +34,13 @@ const COLORS := {
 	"car_b": Color(0.80, 0.80, 0.82),
 	"car_c": Color(0.35, 0.65, 0.40),
 	"car_glass": Color(0.20, 0.27, 0.35),
-	"pothole": Color(0.10, 0.10, 0.11),
+	"pothole": Color(0.035, 0.035, 0.04),
+	"pothole_deep": Color(0.0, 0.0, 0.0),
+	"pothole_rim": Color(0.55, 0.53, 0.49),
+	"spark": Color(1.0, 0.78, 0.30),
+	"dust": Color(0.66, 0.60, 0.50),
+	"debris": Color(0.30, 0.30, 0.32),
+	"crash_flash": Color(0.95, 0.12, 0.08),
 	"finish_a": Color(0.97, 0.97, 0.97),
 	"finish_b": Color(0.08, 0.08, 0.08),
 	"start_banner": Color(0.20, 0.70, 0.45),
@@ -66,5 +72,17 @@ static func mat(id: String, double_sided: bool = false) -> StandardMaterial3D:
 	m.metallic = 0.0
 	if double_sided:
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_materials[key] = m
+	return m
+
+
+## Glowing (unshaded) material, e.g. sparks.
+static func glow_mat(id: String) -> StandardMaterial3D:
+	var key := id + "_glow"
+	if _materials.has(key):
+		return _materials[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color(id)
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_materials[key] = m
 	return m

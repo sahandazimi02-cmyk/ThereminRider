@@ -22,6 +22,8 @@ const STATE_NAMES := ["FOOT DOWN", "RIDING", "FALLING", "DOWN"]
 var tuning: BikeTuning
 ## x = self-stability multiplier, y = gravity multiplier (menu assist level).
 var assist_scale := Vector2.ONE
+## 0 = random wobble each run. Tests set a fixed seed so runs repeat exactly.
+var noise_seed := 0
 
 var state: State = State.FOOT_DOWN
 var speed := 0.0
@@ -35,6 +37,9 @@ var lean_eq := 0.0
 var stability_k := 0.0
 var target_speed := 0.0
 var last_crash_reason := ""
+## True when the last fall came from hitting something (rail/obstacle), so the
+## game plays the big crash effects. False for plain balance/stall falls.
+var impact := false
 
 var model: BikeModel
 
@@ -45,6 +50,11 @@ var _noise_phase := Vector3.ZERO
 var _wheel_spin := 0.0
 var _crank := 0.0
 var _rng := RandomNumberGenerator.new()
+# Crash motion (visual + slide): slide direction, spin on the ground, bounce.
+var _slide_dir := Vector3.FORWARD
+var _spin := 0.0
+var _hop_y := 0.0
+var _hop_v := 0.0
 
 
 func _ready() -> void:
@@ -53,7 +63,10 @@ func _ready() -> void:
 	model = BikeModel.new()
 	model.name = "Model"
 	add_child(model)
-	_rng.randomize()
+	if noise_seed != 0:
+		_rng.seed = noise_seed
+	else:
+		_rng.randomize()
 	_noise_phase = Vector3(_rng.randf() * TAU, _rng.randf() * TAU, _rng.randf() * TAU)
 
 
@@ -69,6 +82,12 @@ func respawn(pos: Vector3, heading: float) -> void:
 	yaw_rate = 0.0
 	lat_accel = 0.0
 	_stall_t = 0.0
+	impact = false
+	_spin = 0.0
+	_hop_y = 0.0
+	_hop_v = 0.0
+	if model != null:
+		model.reset_rider()
 	_update_model()
 
 
@@ -100,6 +119,8 @@ func step(dt: float, steer_in: float, cadence_rpm: float) -> void:
 			speed += minf(t.pedal_response * (target_speed - speed), t.max_accel) * dt
 		else:
 			var decel := t.coast_decel + t.coast_drag * speed * speed
+			if cadence < 1.0:
+				decel += t.stop_brake
 			speed = maxf(target_speed, speed - decel * dt)
 			speed = maxf(speed, 0.0)
 	else:
@@ -119,7 +140,18 @@ func step(dt: float, steer_in: float, cadence_rpm: float) -> void:
 	yaw_rate = speed * tan(steer_angle) / t.wheelbase_m if is_upright() else 0.0
 	lat_accel = speed * yaw_rate
 	yaw -= yaw_rate * dt
-	position += forward() * speed * dt
+	if is_upright():
+		position += forward() * speed * dt
+	else:
+		position += _slide_dir * speed * dt
+		yaw += _spin * dt
+		_spin *= exp(-2.2 * dt)
+	if _hop_y > 0.0 or _hop_v > 0.0:
+		_hop_v -= G * dt
+		_hop_y += _hop_v * dt
+		if _hop_y <= 0.0:
+			_hop_y = 0.0
+			_hop_v = -_hop_v * 0.3 if _hop_v < -1.0 else 0.0
 
 	# --- lean ---
 	match state:
@@ -156,7 +188,7 @@ func _step_balance(dt: float) -> void:
 	stability_k = t.self_stability * assist_scale.x * smoothstep(t.wobble_speed, t.stable_speed, speed)
 	lean_eq = atan2(lat_accel, G)
 	var pend := gs * (G / t.com_height_m) * (sin(lean) - cos(lean) * lat_accel / G)
-	var wobble := t.wobble_noise * (1.0 - smoothstep(0.0, t.wobble_speed, speed)) * _noise(dt)
+	var wobble := (t.wobble_noise * (1.0 - smoothstep(0.0, t.wobble_speed, speed)) + t.speed_wobble) * _noise(dt)
 	var acc := pend - stability_k * (lean - lean_eq) - t.lean_damping * lean_rate + wobble
 	lean_rate += acc * dt
 	lean += lean_rate * dt
@@ -172,13 +204,28 @@ func _step_balance(dt: float) -> void:
 		_stall_t = 0.0
 
 
-## Called by the game for rail/obstacle hits. side: +1 fall right, -1 left, 0 = auto.
-func crash(reason: String, side: float = 0.0) -> void:
+## Called by the game for rail/obstacle hits. side: +1 fall right, -1 left,
+## 0 = auto. bounce: world direction the bike gets knocked toward (e.g. off a rail).
+func crash(reason: String, side: float = 0.0, bounce: Vector3 = Vector3.ZERO) -> void:
 	if not is_upright():
 		return
-	speed *= tuning.impact_speed_keep
 	if side == 0.0:
 		side = signf(lean) if absf(lean) > 0.02 else _random_side()
+	var t := tuning
+	var hit_speed := speed
+	var fwd := forward()
+	# Rider keeps flying; the bike stops short, bounces and spins.
+	if model != null:
+		var throw_v := fwd * hit_speed * t.rider_throw_keep + Vector3.UP * t.rider_throw_up * clampf(hit_speed / 6.0, 0.4, 1.2)
+		throw_v += bounce * hit_speed * 0.15 + right() * side * 0.8
+		var tumble := right() * -t.rider_tumble * clampf(hit_speed / 6.0, 0.4, 1.3) + fwd * side * _rng.randf_range(1.0, 3.0)
+		model.throw_rider(throw_v, tumble)
+	speed = hit_speed * t.impact_speed_keep
+	_slide_dir = (fwd + bounce * 0.9).normalized() if bounce != Vector3.ZERO else fwd
+	_spin = deg_to_rad(t.crash_spin_deg_s) * _rng.randf_range(0.6, 1.0) * (1.0 if _rng.randf() < 0.5 else -1.0)
+	_hop_v = t.crash_hop * clampf(hit_speed / 6.0, 0.3, 1.2)
+	_hop_y = 0.001
+	impact = true
 	_start_fall(reason, side)
 
 
@@ -192,6 +239,13 @@ func hit_pothole() -> void:
 func _start_fall(reason: String, side: float) -> void:
 	state = State.FALLING
 	_fall_side = side if side != 0.0 else 1.0
+	if not impact:
+		# Plain fall: slide on in a straight line, rider topples off sideways.
+		_slide_dir = forward()
+		var soft := tuning.soft_fall_throw
+		if model != null and soft > 0.0:
+			var v := forward() * speed * 0.9 + right() * _fall_side * 2.4 * soft + Vector3.UP * 1.6 * soft
+			model.throw_rider(v, forward() * _fall_side * 3.5 * soft)
 	if lean_rate * _fall_side < 0.0:
 		lean_rate = 0.0
 	last_crash_reason = reason
@@ -212,4 +266,5 @@ func _noise(dt: float) -> float:
 func _update_model() -> void:
 	rotation = Vector3(0.0, yaw, 0.0)
 	if model != null:
+		model.position.y = _hop_y
 		model.update_pose(lean, steer_angle, _wheel_spin, _crank)

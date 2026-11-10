@@ -28,6 +28,7 @@ func _run() -> void:
 		return
 	print("=== Theremin Rider smoke test ===")
 	_test_osc()
+	await _test_profiles()
 	_test_cadence()
 	_test_road()
 	_test_fall_times()
@@ -74,6 +75,32 @@ func _test_osc() -> void:
 	_check(msgs.size() == 2 and msgs[1]["args"][0] == 1, "parse bundle with float + int")
 	OscReceiver.handle_message("/bike/steer", [-0.5])
 	_check(OscReceiver.steer_fresh() and is_equal_approx(OscReceiver.steer, -0.5), "receiver stores /bike/steer")
+
+
+## Each control profile routes steer / pedal to the right device. Only the
+## theremin is "live" here (no cadence), so the bike-pedal channel reads NONE.
+func _test_profiles() -> void:
+	print("[control profiles]")
+	var saved := GameSession.input_profile
+	var P := GameSession.InputProfile
+	var S := RiderInput.Source
+	# profile -> [expected steer source, expected pedal source]
+	var expect := {
+		P.CONTROLLER: [S.PAD, S.PAD],
+		P.THEREMIN_BIKE: [S.OSC, S.NONE],
+		P.THEREMIN_CONTROLLER: [S.OSC, S.PAD],
+	}
+	for profile: int in expect:
+		GameSession.input_profile = profile as GameSession.InputProfile  # set directly: never save in tests
+		OscReceiver.handle_message("/bike/steer", [-0.5])
+		OscReceiver.handle_message("/bike/steer/present", [1])
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var want: Array = expect[profile]
+		_check(RiderInput.steer_source == want[0] and RiderInput.pedal_source == want[1],
+				"%s: steer %s, pedal %s" % [GameSession.input_profile_name(),
+				RiderInput.source_name(RiderInput.steer_source), RiderInput.source_name(RiderInput.pedal_source)])
+	GameSession.input_profile = saved
 
 
 func _test_cadence() -> void:

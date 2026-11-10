@@ -2,16 +2,17 @@
 ## Merges theremin/bike OSC (from Max) with the controller/keyboard fallback.
 ##   steer        -1..1  (-1 full left, +1 full right)
 ##   cadence_rpm  crank RPM from the pedal player
-## AUTO mode uses OSC for each channel while Max is sending it, otherwise the pad.
+## Which device drives which channel comes from the control profile
+## (GameSession.input_profile, picked in the main menu or with F2):
+##   CONTROLLER           steer = stick / keys     pedal = A / Space taps
+##   THEREMIN_BIKE        steer = theremin (OSC)   pedal = stationary bike (OSC)
+##   THEREMIN_CONTROLLER  steer = theremin (OSC)   pedal = A / Space taps
+## A channel set to OSC never falls back to the pad: no Max signal = NONE.
 extends Node
 
-enum Mode { AUTO, PAD_ONLY, OSC_ONLY }
 enum Source { PAD, OSC, NONE }
 
-const MODE_NAMES := ["Auto", "Controller only", "OSC only"]
-
 var tuning: InputTuning
-var mode: Mode = Mode.AUTO
 
 var steer := 0.0
 var cadence_rpm := 0.0
@@ -48,7 +49,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pedal", false):
 		_pad_strokes.add_stroke(_now())
 	elif event.is_action_pressed("cycle_input_mode", false):
-		mode = ((int(mode) + 1) % MODE_NAMES.size()) as Mode
+		GameSession.cycle_input_profile()
 
 
 func _process(delta: float) -> void:
@@ -57,14 +58,7 @@ func _process(delta: float) -> void:
 	pad_cadence = _pad_strokes.rpm(now)
 
 	# --- steering ---
-	var use_osc_steer := false
-	match mode:
-		Mode.AUTO:
-			use_osc_steer = OscReceiver.steer_fresh()
-		Mode.OSC_ONLY:
-			use_osc_steer = true
-		Mode.PAD_ONLY:
-			use_osc_steer = false
+	var use_osc_steer := steer_uses_theremin()
 	var target := pad_steer
 	hand_present = true
 	if use_osc_steer:
@@ -87,7 +81,6 @@ func _process(delta: float) -> void:
 		steer_source = Source.PAD
 
 	# --- pedalling ---
-	var use_osc_pedal := false
 	var osc_value := 0.0
 	var osc_live := OscReceiver.cadence_fresh() or OscReceiver.strokes_fresh()
 	if OscReceiver.cadence_fresh():
@@ -95,13 +88,7 @@ func _process(delta: float) -> void:
 	elif OscReceiver.strokes_fresh():
 		osc_value = _osc_strokes.rpm(now) * tuning.osc_cadence_gain
 	osc_cadence = osc_value
-	match mode:
-		Mode.AUTO:
-			use_osc_pedal = osc_live
-		Mode.OSC_ONLY:
-			use_osc_pedal = true
-		Mode.PAD_ONLY:
-			use_osc_pedal = false
+	var use_osc_pedal := pedal_uses_bike()
 	var cadence_target := pad_cadence
 	if use_osc_pedal:
 		pedal_source = Source.OSC if osc_live else Source.NONE
@@ -121,8 +108,18 @@ func _process(delta: float) -> void:
 		cadence_rpm = 0.0
 
 
-func mode_name() -> String:
-	return MODE_NAMES[int(mode)]
+func profile_name() -> String:
+	return GameSession.input_profile_name()
+
+
+## True when the active profile steers with the theremin (OSC).
+func steer_uses_theremin() -> bool:
+	return GameSession.input_profile != GameSession.InputProfile.CONTROLLER
+
+
+## True when the active profile pedals with the stationary bike (OSC).
+func pedal_uses_bike() -> bool:
+	return GameSession.input_profile == GameSession.InputProfile.THEREMIN_BIKE
 
 
 static func source_name(s: Source) -> String:

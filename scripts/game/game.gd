@@ -376,8 +376,8 @@ func _update_hud() -> void:
 	if steer_src == "OSC" and not RiderInput.hand_present:
 		steer_state = "THEREMIN - hand not detected!"
 	var pedal_state := "BIKE (OSC)" if pedal_src == "OSC" else ("CONTROLLER (tap A / Space)" if pedal_src == "PAD" else "NO SIGNAL")
-	hud.input_label.text = "Steer: %s\nPedal: %s\nInput mode: %s (F2)    Camera: %s (C / Y)\nAssist: %s" % [
-			steer_state, pedal_state, RiderInput.mode_name(),
+	hud.input_label.text = "Steer: %s\nPedal: %s\nControls: %s (F2)    Camera: %s (C / Y)\nAssist: %s" % [
+			steer_state, pedal_state, RiderInput.profile_name(),
 			"1st person" if cam.first_person else "3rd person", GameSession.assist_name()]
 
 	var g := hud.gauges

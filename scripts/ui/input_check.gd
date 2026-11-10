@@ -52,7 +52,9 @@ THEREMIN (OSC %s):  %s   value %+.3f   hand %s
 STATIONARY BIKE (OSC %s / %s):  %s   %.0f RPM
 CONTROLLER:  left stick %+.2f   A-tap cadence %.0f RPM
 
-USING NOW  ->  steer %s %+.2f    pedal %s %.0f RPM    mode %s (F2 to change)
+USING NOW  ->  steer %s %+.2f    pedal %s %.0f RPM
+CONTROLS:  %s (F2 to change)
+%s
 
 Expected from Max:  %s f (-1..1)   %s i (0/1)   %s f (RPM)   or %s per stroke""" % [
 			OscReceiver.status_text, OscReceiver.packets_per_s, OscReceiver.packets_total,
@@ -63,7 +65,8 @@ Expected from Max:  %s f (-1..1)   %s i (0/1)   %s f (RPM)   or %s per stroke"""
 			"LIVE" if (OscReceiver.cadence_fresh() or OscReceiver.strokes_fresh()) else "no signal", RiderInput.osc_cadence,
 			RiderInput.pad_steer, RiderInput.pad_cadence,
 			RiderInput.source_name(RiderInput.steer_source), RiderInput.steer,
-			RiderInput.source_name(RiderInput.pedal_source), RiderInput.cadence_rpm, RiderInput.mode_name(),
+			RiderInput.source_name(RiderInput.pedal_source), RiderInput.cadence_rpm,
+			RiderInput.profile_name(), UiKit.input_profile_hint(),
 			t.addr_steer, t.addr_steer_present, t.addr_cadence, t.addr_pedal_stroke]
 
 

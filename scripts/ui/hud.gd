@@ -61,7 +61,7 @@ func _ready() -> void:
 	help_label.offset_top = -96
 	help_label.offset_left = -560
 	help_label.offset_right = -24
-	help_label.text = "C / Y: camera     Esc / Start: pause\nF2: input mode     F1: debug     R: quick reset"
+	help_label.text = "C / Y: camera     Esc / Start: pause\nF2: controls     F1: debug     R: quick reset"
 	root.add_child(help_label)
 
 	center_label = UiKit.label("", 64, HORIZONTAL_ALIGNMENT_CENTER)

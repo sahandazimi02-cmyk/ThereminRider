@@ -1,7 +1,9 @@
-## Title screen: pick a mode, assist level and camera; shows live input status
+## Title screen: pick a mode, control profile, assist level and camera; shows live input status
 ## so you can see Max/OSC is connected before riding.
 extends Control
 
+var _profile_btn: Button
+var _profile_hint: Label
 var _assist_btn: Button
 var _camera_btn: Button
 var _status: Label
@@ -27,6 +29,8 @@ func _ready() -> void:
 	var endless := UiKit.button("Endless ride", _on_endless)
 	col.add_child(endless)
 	col.add_child(UiKit.button("Course", _on_course))
+	_profile_btn = UiKit.button("", _on_profile)
+	col.add_child(_profile_btn)
 	col.add_child(UiKit.button("Input check", _on_input_check))
 	_assist_btn = UiKit.button("", _on_assist)
 	col.add_child(_assist_btn)
@@ -36,6 +40,8 @@ func _ready() -> void:
 	for c in col.get_children():
 		if c is Button:
 			(c as Button).size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_profile_hint = UiKit.label("", 18, HORIZONTAL_ALIGNMENT_CENTER)
+	col.add_child(_profile_hint)
 
 	col.add_child(_spacer(10))
 	_best = UiKit.label("", 20, HORIZONTAL_ALIGNMENT_CENTER)
@@ -50,9 +56,11 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	var steer := RiderInput.source_name(RiderInput.steer_source)
 	var pedal := RiderInput.source_name(RiderInput.pedal_source)
-	_status.text = "%s\nSteer: %s (%+.2f)    Pedal: %s (%d RPM)    Input mode: %s (F2)" % [
-			OscReceiver.status_text, steer, RiderInput.steer, pedal,
-			int(RiderInput.cadence_rpm), RiderInput.mode_name()]
+	_status.text = "%s\nSteer: %s (%+.2f)    Pedal: %s (%d RPM)" % [
+			OscReceiver.status_text, steer, RiderInput.steer, pedal, int(RiderInput.cadence_rpm)]
+	# F2 can change the profile while the menu is open, so keep the button in sync.
+	if not _profile_btn.text.ends_with(GameSession.input_profile_name()):
+		_refresh_buttons()
 	var course_best := UiKit.format_time(GameSession.best_course_s) if GameSession.best_course_s > 0.0 else "--"
 	_best.text = "Best endless streak %d m     Best course %s" % [int(GameSession.best_endless_m), course_best]
 
@@ -64,6 +72,8 @@ func _spacer(h: float) -> Control:
 
 
 func _refresh_buttons() -> void:
+	_profile_btn.text = "Controls: %s" % GameSession.input_profile_name()
+	_profile_hint.text = UiKit.input_profile_hint()
 	_assist_btn.text = "Balance assist: %s" % GameSession.assist_name()
 	_camera_btn.text = "Camera: %s" % ("1st person" if GameSession.first_person else "3rd person")
 
@@ -80,6 +90,11 @@ func _on_course() -> void:
 
 func _on_input_check() -> void:
 	get_tree().change_scene_to_file("res://scenes/input_check.tscn")
+
+
+func _on_profile() -> void:
+	GameSession.cycle_input_profile()
+	_refresh_buttons()
 
 
 func _on_assist() -> void:

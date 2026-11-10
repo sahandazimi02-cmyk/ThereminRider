@@ -41,6 +41,16 @@ static func centered() -> CenterContainer:
 	return c
 
 
+## One line saying who does what in the active control profile.
+static func input_profile_hint() -> String:
+	match GameSession.input_profile:
+		GameSession.InputProfile.THEREMIN_BIKE:
+			return "Steer with the theremin, pedal the stationary bike (both through Max)."
+		GameSession.InputProfile.THEREMIN_CONTROLLER:
+			return "Steer with the theremin (Max). Pedal by tapping the pad's A button or Space / W / Up."
+	return "Steer with the left stick or the A / D keys. Pedal by tapping the pad's A button or Space / W / Up."
+
+
 static func format_time(t: float) -> String:
 	var m := int(t / 60.0)
 	var s := t - m * 60.0

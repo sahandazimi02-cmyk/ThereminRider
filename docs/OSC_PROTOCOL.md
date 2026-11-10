@@ -14,10 +14,11 @@ You can rename all four addresses in `data/input_tuning.tres`.
 ## Rules Godot applies
 
 - **Freshness:** a channel counts as "live" while messages arrive at least every `osc_timeout_s` (0.75 s). Max must therefore keep sending, not only when a value changes. The patch uses `snapshot~ 20` and `metro 50` for this.
-- **Auto input mode** (the default, F2 changes it):
-  - Steering comes from OSC while `/bike/steer` is live, otherwise from the controller.
-  - Pedalling comes from OSC while `/bike/cadence` or `/bike/pedal` is live, otherwise from the controller.
-  - **This means** that if Max is sending `/bike/cadence 0`, the controller's A button is ignored. Switch Max's "SEND PEDAL DATA" off, or press F2 for *Controller only*.
+- **Control profiles** (main menu or F2, see CONTROLS.md) decide which channels Godot takes from OSC:
+  - *Controller / keyboard*: OSC is still received and shown on Input check, but not used.
+  - *Theremin + bike pedals*: steering from `/bike/steer`, pedalling from `/bike/cadence` (or `/bike/pedal` if no cadence is live).
+  - *Theremin + controller / keyboard pedal*: steering from `/bike/steer`; Max's pedal data is ignored, so SEND PEDAL DATA can stay on.
+  - There is no automatic fallback (the old *Auto* mode is gone, 0.5.0). A channel the profile takes from OSC reads NONE while it isn't live.
 - **Hand absent** (`/bike/steer/present 0`): steering eases back to straight (`steer_absent_return_s`), and the HUD shows *THEREMIN - hand not detected!* The co-op get-up also needs the hand present.
 - **Steering processing in Godot**, in `input_tuning.tres`: `osc_steer_invert`, `osc_steer_gain`, `osc_steer_deadzone` (re-scaled so it stays continuous), and `osc_steer_smoothing_s`.
 - **Pedal strokes:** 2 strokes = 1 crank revolution (`strokes_per_rev`). The last 4 intervals are averaged, and cadence drops to 0 after `stroke_timeout_s` (1.2 s) without a stroke.

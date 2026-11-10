@@ -1,6 +1,6 @@
 # Handoff: Theremin Rider
 
-**Last updated:** 2026-11-10 · **Version:** 0.4.2 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
+**Last updated:** 2026-11-11 · **Version:** 0.5.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
 
 ## 1. What this is
 
@@ -16,6 +16,7 @@ A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. 
 | Balance feel | 0.3.0: steadier than 0.1.0 (`lean_assist`, more damping). 0.2.1: back to the 0.1.0 balance (self-balancing at speed, balance by steering when slow) because 0.2.0 was far too hard (KI-19). Stop-pedalling still falls in ~4 s. Next: small tuning steps from here with the user. |
 | First-person view (0.4.0) | True first person: your arms, gloved hands and the handlebar are in view and turn with the steering. Model + camera are edited in `scenes/bike/bike_model.tscn` (TUNING.md). Checked in a screenshot, not played. |
 | Controller / keyboard play | Done. Not yet played by a human. |
+| Control profiles (0.5.0) | Three saved profiles replace Auto / Controller only / OSC only: **Controller / keyboard**, **Theremin + bike pedals**, **Theremin + controller / keyboard pedal**. Main menu button or F2. `GameSession.input_profile` stores it; `RiderInput` routes by it. Smoke-tested; menu not looked at on screen. |
 | OSC receive in Godot | Done; tested with `tools/osc_test_sender.py` |
 | Max patch (theremin → steer) | **Now the user's own Max-saved patch** (0.4.2). Steering: pitch → `ftom` → `zmap 60. 80. -1. 1.`. Don't run `tools/make_maxpat.py` over it. |
 | Stationary bike sensor | Arduino on COM7, 9600 baud, sends `p` per pedal turn (checked live). Max column 5 opens COM7 on load and feeds pulse in → RPM → `/bike/cadence` (0.4.2). Some extra/irregular pulses seen (KI-27). |
@@ -42,7 +43,7 @@ scenes/main_menu.tscn ─► scenes/game.tscn (Game) ─► builds everything in
                                   ├─ BikeCamera  chase / first person
                                   ├─ Hud (+ HudGauges)
                                   └─ PauseMenu   (also the course results)
-Autoloads:  GameSession (mode, assist, camera pref, best scores → user://theremin_rider.cfg)
+Autoloads:  GameSession (mode, assist, camera pref, control profile, best scores → user://theremin_rider.cfg)
             OscReceiver (UDP 9100 → latest steer / present / cadence / pedal strokes)
             RiderInput  (ONE place gameplay reads input: merges OSC + controller → steer, cadence_rpm)
 ```
@@ -70,7 +71,7 @@ Key design decisions:
 ## 5. Next steps (suggested order)
 
 1. **Open `max/ThereminRider.maxpat` in Max 9**, fix anything that doesn't load (KI-01), calibrate, and confirm with Input check.
-2. **First human playtest with the controller**, then with the theremin. 0.3.0 tuned for the theremin (slower, steering assist, forgiving rails); if it now feels too easy or "on rails", turn down `heading_assist` / `road_follow` / `rail_grace_s` first (TUNING.md knobs table). The user wants to tune balance from the 0.1.0 feel in small steps (KI-19); don't jump to 0.2.0-style "always unstable" again. Tune with TUNING.md's "Knobs to reach for first" table and log the results in CHANGELOG.
+2. **First human playtest with the controller** (profile 1), then theremin + controller pedal (profile 3, no bike needed), then theremin + bike (profile 2). 0.3.0 tuned for the theremin (slower, steering assist, forgiving rails); if it now feels too easy or "on rails", turn down `heading_assist` / `road_follow` / `rail_grace_s` first (TUNING.md knobs table). The user wants to tune balance from the 0.1.0 feel in small steps (KI-19); don't jump to 0.2.0-style "always unstable" again. Tune with TUNING.md's "Knobs to reach for first" table and log the results in CHANGELOG.
 3. **Pedal test in Max:** open the patch, check the column 5 light flashes once per turn, turn on SEND PEDAL DATA, watch Latest RPM while pedalling steadily. If it jumps around, look at KI-27 (debounce on the Arduino, or ignore pulses < 300 ms in Max). Tune `speed_per_rpm` so a comfortable real cadence gives the speed you want (0.3.0 default: 90 RPM ≈ 24 km/h).
 4. Decide Hard assist after playtesting (KI-03).
 5. Nice-to-haves: audio (wind/chain/crash), hills, more course tracks (`course_data.gd` is plain data), a proper art pass (replace the generated meshes in `scenes/bike/bike_model.tscn` with a GLB; keep the `update_pose` / `first_person_transform` API and the `FirstPersonCamera` node).
@@ -78,7 +79,7 @@ Key design decisions:
 
 ## 6. Gotchas
 
-- With Max's SEND PEDAL DATA on, the controller's pedal is ignored (Auto mode). Use F2 or turn the toggle off.
+- The control profile decides the devices (0.5.0); there's no automatic fallback. If steering or pedalling reads NO SIGNAL, check the profile on the main menu (or F2) before debugging Max.
 - `docs/` has a `.gdignore`, so Godot doesn't import the screenshots.
 - Tests never write scores (`Game.record_scores = false`). Keep it that way.
 - Default input actions are added at runtime only if missing; project Input Map entries override them.

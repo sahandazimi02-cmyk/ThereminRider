@@ -2,6 +2,25 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.5.0: 2026-11-11, control profiles
+
+### Added
+- **Three control profiles**, picked with the new **Controls: ...** main-menu button or **F2** (anywhere), saved in `user://theremin_rider.cfg` (`settings/input_profile`):
+  1. **Controller / keyboard**: stick or A/D steers, A button / Space taps pedal. Default.
+  2. **Theremin + bike pedals**: both from Max over OSC.
+  3. **Theremin + controller / keyboard pedal**: theremin steers, A / Space taps pedal (Max's pedal data ignored).
+- Main menu shows a one-line "who does what" hint under the buttons; Input check shows the profile and the hint; the in-game HUD says `Controls: <profile> (F2)`.
+- Smoke test `[control profiles]`: sets each profile directly (no save) and checks the steer/pedal sources.
+
+### Changed
+- The old Auto / Controller only / OSC only input modes are gone (`RiderInput.Mode`, `mode`, `mode_name()` removed; use `GameSession.input_profile`, `RiderInput.profile_name()`, `steer_uses_theremin()`, `pedal_uses_bike()`). F2 (`cycle_input_mode`) now cycles profiles. No automatic fallback: an OSC channel that isn't live reads NONE. This fixes KI-14.
+- CONTROLS.md (new profile table), OSC_PROTOCOL.md, HANDOFF.md updated.
+
+### Verified
+- Headless import: exit 0, no errors.
+- Smoke test: the 3 new profile checks pass. Exit 1 because of the same two speed checks that already failed in 0.4.0–0.4.2 (`stays under 29 km/h`, `max_speed_kmh is reachable` at 60 km/h), from the uncommitted local `bike_tuning.tres` edits; this change doesn't touch the bike.
+- Not checked: the main menu / HUD on screen, a real controller, Max.
+
 ## 0.4.2: 2026-11-10, user's Max patch saved; Arduino wired into the pedals
 
 ### Saved

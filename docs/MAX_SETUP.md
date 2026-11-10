@@ -15,6 +15,8 @@ Your original patch (`C:\Users\User\Desktop\What matters\bike theremin.maxpat`) 
 
 ## How the patch is laid out (since 0.2.0; seven columns since 0.4.1)
 
+> **Your steering (0.4.2):** in your saved patch the steering comes from the live pitch → `ftom 0.` (Hz → MIDI note) → `zmap 60. 80. -1. 1.` → multislider → `slide` → `/bike/steer`. The piecewise calibration `expr` in column 3 is no longer connected to `slide`. The table below describes the original generated layout.
+
 Seven columns, left to right in signal order. Each column does one job. Columns talk to each other through named **[s tr.name] → [r tr.name]** pairs instead of long cables: anything sent to `s tr.pitch` comes out of every `r tr.pitch`, with no cable needed. So you can read or change one column without following wires across the screen.
 
 | Column | Does | Receives | Sends |
@@ -51,8 +53,8 @@ Click the `host 127.0.0.1` message box after editing it to the game PC's IP (e.g
 The Arduino sends the character `p` over USB serial once per pedal turn (crank revolution). Column 5 reads it and column 6 turns the timing into RPM for `/bike/cadence`.
 
 1. Plug the Arduino in. Close the Arduino IDE's Serial Monitor (only one program can have the port open).
-2. Column 5: click **list ports**, then pick the Arduino's COM port in the menu next to it (Device Manager → Ports shows which one; the "Standard Serial over Bluetooth link" ports are not it). Or edit the `port COM7` box to the right name and click it.
-3. Click the **baud** box that matches `Serial.begin(...)` in the sketch. The patch opens at 9600.
+2. Column 5 opens **COM7 at 9600 baud** by itself when the patch opens (`loadbang` → `port COM7`). On this PC the Arduino is COM7 ("USB Serial Device") and its sketch uses 9600. If Windows gives it another number (e.g. a different USB socket), click **list ports** and pick it in the menu, or edit the `port COM7` box and click it. The "Standard Serial over Bluetooth link" ports are not the Arduino.
+3. If the sketch's `Serial.begin(...)` ever changes, click the matching **baud** box.
 4. **READ** is on by default. Pedal: the light under `sel 112` should flash once per turn and **last byte received** should show 112. Garbage numbers mean the baud rate is wrong.
 5. Column 6: the **pulse in** light flashes with it. Turn on **SEND PEDAL DATA**. The **Latest RPM** number shows the cadence, and the game's Input check shows `/bike/cadence` as `LIVE`.
 6. Set **pulses per crank turn** if the Arduino sends more than one `p` per revolution (e.g. two magnets → 2).
@@ -70,4 +72,6 @@ Other sensors still fit:
 
 ## Regenerating the patch
 
-`tools/make_maxpat.py` builds this patch from code: `python tools/make_maxpat.py max/ThereminRider.maxpat`. The script also checks the layout (no cable crosses columns, nothing overlaps or spills out of its column) and prints `LAYOUT:` lines if something does. If you edit the patch in Max and save it, that file is the source of truth; don't regenerate over it.
+**Don't regenerate (since 0.4.2).** `max/ThereminRider.maxpat` now holds the user's own Max edits (the theremin steering via `ftom` → `zmap 60. 80. -1. 1.` with multislider meters, and the moved columns). Running the generator over it would wipe that work, and the generator doesn't contain those edits. Change the patch in Max, or edit its JSON carefully and diff it against the last saved version.
+
+Before 0.4.2: `tools/make_maxpat.py` built this patch from code: `python tools/make_maxpat.py max/ThereminRider.maxpat`. The script also checks the layout (no cable crosses columns, nothing overlaps or spills out of its column) and prints `LAYOUT:` lines if something does. If you edit the patch in Max and save it, that file is the source of truth; don't regenerate over it.

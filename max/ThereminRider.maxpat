@@ -204,7 +204,7 @@
                     "numoutlets": 1,
                     "outlettype": [ "int" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 1262.0, 626.0, 24.0, 24.0 ]
+                    "patching_rect": [ 1284.0, 494.0, 24.0, 24.0 ]
                 }
             },
             {
@@ -303,7 +303,7 @@
                     "numoutlets": 1,
                     "outlettype": [ "bang" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 1378.0, 800.0, 24.0, 24.0 ]
+                    "patching_rect": [ 1284.0, 630.0, 24.0, 24.0 ]
                 }
             },
             {
@@ -381,7 +381,7 @@
                     "numoutlets": 0,
                     "patching_rect": [ 1284.0, 734.0, 229.0, 48.0 ],
                     "presentation_linecount": 3,
-                    "text": "Other bytes (newlines etc.) are ignored. A\nserial error about port z when the patch\nopens is normal until you pick a port."
+                    "text": "Opens COM7 (the Arduino on this PC) when\nthe patch opens. Other bytes (newlines) are\nignored. A 'port z' error at load is harmless."
                 }
             },
             {
@@ -514,7 +514,7 @@
                     "numinlets": 1,
                     "numoutlets": 0,
                     "patching_rect": [ 20.0, 42.0, 1500.0, 21.0 ],
-                    "text": "QUICK START:  1) click the speaker in column 1 (audio on)   2) calibrate in column 2   3) check the hand light in column 4   4) start the game -> Input check"
+                    "text": "QUICK START:  1) click the speaker in column 1 (audio on)   2) calibrate in column 2   3) check the hand light in column 4   4) bike: Arduino in column 5 (opens COM7), turn on SEND PEDAL DATA in column 6   5) start the game -> Input check"
                 }
             },
             {
@@ -526,7 +526,7 @@
                     "numinlets": 1,
                     "numoutlets": 0,
                     "patching_rect": [ 20.0, 70.0, 1133.0, 34.0 ],
-                    "text": "HOW TO READ THIS PATCH:  columns run left to right in signal order. Cables only connect things inside a column. Between columns, [s tr.name] sends to every [r tr.name] with the same name (no cable needed).\nMessage boxes holding a number are the defaults loaded when the patch opens - click one to restore it. Everything the game receives goes into [s tr.osc] and comes out of column 6.",
+                    "text": "HOW TO READ THIS PATCH:  columns run left to right in signal order. Cables only connect things inside a column. Between columns, [s tr.name] sends to every [r tr.name] with the same name (no cable needed).\nMessage boxes holding a number are the defaults loaded when the patch opens - click one to restore it. Everything the game receives goes into [s tr.osc] and comes out of column 7.",
                     "textcolor": [ 0.8, 0.8, 0.8, 1.0 ]
                 }
             },
@@ -1675,7 +1675,7 @@
                     "numinlets": 1,
                     "numoutlets": 0,
                     "patching_rect": [ 1603.0, 150.0, 280.0, 24.0 ],
-                    "text": "5. PEDALS  (stationary bike)"
+                    "text": "6. PEDALS  (stationary bike)"
                 }
             },
             {
@@ -1687,7 +1687,7 @@
                     "numinlets": 1,
                     "numoutlets": 0,
                     "patching_rect": [ 1603.0, 176.0, 271.0, 34.0 ],
-                    "text": "Sends /bike/cadence (RPM). Sensor not built yet.\nWhile OFF the game uses the controller A button."
+                    "text": "Sends /bike/cadence (RPM). Turn ON to use the bike.\nWhile OFF the game uses the controller A button."
                 }
             },
             {
@@ -1777,12 +1777,11 @@
                 "box": {
                     "fontsize": 12.0,
                     "id": "obj-112",
-                    "linecount": 3,
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 1603.0, 382.0, 243.0, 48.0 ],
-                    "text": "(b) SENSOR: bang 'pulse in' once per crank\nturn (e.g. Arduino reed switch -> [serial]\n-> [sel 1] -> here). Pulse timing -> RPM."
+                    "patching_rect": [ 1603.0, 382.0, 280.0, 20.0 ],
+                    "text": "(b) SENSOR: Arduino pulses from column 5"
                 }
             },
             {
@@ -2028,7 +2027,7 @@
                     "numinlets": 1,
                     "numoutlets": 0,
                     "patching_rect": [ 1919.0, 150.0, 280.0, 24.0 ],
-                    "text": "6. TO GODOT"
+                    "text": "7. TO GODOT"
                 }
             },
             {
@@ -2175,6 +2174,28 @@
                     "numinlets": 1,
                     "numoutlets": 0,
                     "patching_rect": [ 1276.0, 142.0, 300.0, 690.0 ]
+                }
+            },
+            {
+                "box": {
+                    "id": "obj-196",
+                    "maxclass": "newobj",
+                    "numinlets": 0,
+                    "numoutlets": 1,
+                    "outlettype": [ "" ],
+                    "patching_rect": [ 1603.0, 410.0, 77.0, 22.0 ],
+                    "text": "r tr.pulse"
+                }
+            },
+            {
+                "box": {
+                    "fontsize": 12.0,
+                    "id": "obj-197",
+                    "maxclass": "comment",
+                    "numinlets": 1,
+                    "numoutlets": 0,
+                    "patching_rect": [ 1688.0, 410.0, 190.0, 20.0 ],
+                    "text": "<- one per crank turn"
                 }
             }
         ],
@@ -2869,6 +2890,18 @@
                 "patchline": {
                     "destination": [ "obj-100", 0 ],
                     "source": [ "obj-99", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-173", 0 ],
+                    "source": [ "obj-179", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-113", 0 ],
+                    "source": [ "obj-196", 0 ]
                 }
             }
         ],

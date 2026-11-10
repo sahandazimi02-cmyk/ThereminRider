@@ -1,4 +1,6 @@
 """Generates max/ThereminRider.maxpat (Max 9 patcher JSON).
+# DO NOT run this over max/ThereminRider.maxpat any more (since 0.4.2): that file now holds the
+# user's own Max edits (theremin ftom -> zmap steering) and this script would wipe them.
 
     python tools/make_maxpat.py max/ThereminRider.maxpat
 
@@ -510,6 +512,11 @@ for i, p1 in enumerate(solid):
 for pr in problems:
     print("LAYOUT:", pr)
 
+import os
+if os.path.normcase(os.path.abspath(sys.argv[1])).endswith(os.path.normcase(os.path.join("max", "ThereminRider.maxpat"))) \
+        and "--force" not in sys.argv:
+    sys.exit("Refusing to overwrite max/ThereminRider.maxpat: it holds the user's own Max edits. "
+             "Write somewhere else, or pass --force if you really mean it.")
 with open(sys.argv[1], "w", encoding="utf-8", newline="\n") as f:
     json.dump(patch, f, indent=4)
 print(f"{len(boxes)} boxes, {len(lines)} lines")

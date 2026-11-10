@@ -2,6 +2,28 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.4.2: 2026-11-10, user's Max patch saved; Arduino wired into the pedals
+
+### Saved
+- **The user's Max work is committed as-is** (commit 54e2307): theremin steering through `ftom 0.` → `zmap 60. 80. -1. 1.` with multislider meters, PEDALS and TO GODOT moved one column right, and the pasted Arduino column. A byte-identical copy was also kept outside the repo before editing. **No theremin or pitch object was changed** (diffed box by box against the saved file).
+
+### Fixed
+- The pasted Arduino column wasn't connected to anything: the PEDALS column had no `[r tr.pulse]`, so `p` pulses never reached the RPM logic. Added `[r tr.pulse]` → **pulse in** (PEDALS column), so the path is `serial → sel 112 → s tr.pulse → r tr.pulse → pulse in → t b b → timer → split → expr → clip → f → prepend /bike/cadence → udpsend`.
+- Column 5 now opens **COM7** when the patch opens (`loadbang` → `port COM7`), so the Arduino works without picking a port.
+- Two Arduino-column boxes that had been dragged out of place were moved back: the READ toggle (next to its `loadbang`) and the `p` light (between `sel 112` and `s tr.pulse`).
+- Text only: column titles renumbered (6 PEDALS, 7 TO GODOT), quick-start line, PEDALS notes.
+
+### Changed
+- The patch is written in Max's own JSON style (4-space indent, CRLF). Round-trip of the untouched file was byte-identical apart from the final newline.
+- `tools/make_maxpat.py` must no longer be run over `max/ThereminRider.maxpat` (it would wipe the user's edits). MAX_SETUP.md says so.
+
+### Verified
+- Arduino on COM7 (USB Serial Device) sends `p\r\n` (bytes 112 13 10) at 9600 baud; nothing at 115200.
+- Live 20 s capture on COM7 with the patch's maths: 14 pulses, 0 stray bytes; gaps between 250 ms and 5 s give RPM values (15–172 RPM). 5 of 14 pulses came under 250 ms after the previous one and were dropped by `split` (KI-27).
+- Patch JSON: 0 cables with a bad inlet/outlet index, no overlapping boxes in columns 5–6, full path traced from `serial` to `udpsend`. Not opened in Max by me.
+- Godot: headless import clean; smoke test fails only the same two speed checks as 0.4.0/0.4.1 (uncommitted local `bike_tuning.tres` edits). No Godot files changed.
+- `tools/make_maxpat.py` now refuses to write `max/ThereminRider.maxpat` without `--force` (tested: exits 1, patch untouched).
+
 ## 0.4.1: 2026-11-10, Arduino pedal sensor in the Max patch
 
 ### Added

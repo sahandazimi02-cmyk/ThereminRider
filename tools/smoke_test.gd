@@ -130,8 +130,9 @@ func _test_fall_times() -> void:
 	print("    cruise %.1f km/h: stop pedalling %.1f s, hands off %.1f s, full steer %.1f s" % [
 			cruise * 3.6, stop_pedal, hands_off, full_steer])
 	_check(stop_pedal > 1.5 and stop_pedal < 6.5, "stop pedalling falls in 1.5-6.5 s (%.1f s)" % stop_pedal)
-	_check(hands_off > 1.5 and hands_off < 7.0, "no steering at all falls in 1.5-7 s (%.1f s)" % hands_off)
-	_check(full_steer < 3.0, "holding full steer falls in < 3 s (%.1f s)" % full_steer)
+	# 0.2.1 restored the 0.1.0 balance: Normal self-balances at cruising speed.
+	_check(hands_off > 20.0, "no steering at cruise stays up (self-balancing, %.1f s)" % hands_off)
+	_check(full_steer < 10.0, "holding full steer still falls (%.1f s)" % full_steer)
 
 
 ## steer_mode: "balance" = simple balancing rider, "none" = steer 0, "full" = steer +1.

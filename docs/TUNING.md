@@ -12,7 +12,7 @@ The menu's **Balance assist** multiplies two bike values (`GameSession.ASSIST_SC
 
 | Assist | self_stability × | gravity_scale × |
 |---|---|---|
-| Easy | 5.0 | 0.75 |
+| Easy | 1.5 | 0.75 |
 | Normal | 1.0 | 1.0 |
 | Hard | 0.2 | 1.2 |
 
@@ -32,9 +32,10 @@ The bike is simulated directly rather than with Godot's physics engine; that's s
    k(v)    = self_stability · smoothstep(wobble_speed, stable_speed, v)
    ```
    For small angles this is `lean_acc ≈ (T − k) · (lean − a/g) − d · lean_rate`, with T = `gravity_scale·g/h` (the tipping strength, 4.9 on Normal). The one number **T − k** decides the feel:
-   - **T − k clearly above 0** (Normal and Hard, at every speed): the bike is an inverted pendulum. Nobody steering → it tips over within a few seconds (`speed_wobble` starts the drift). Steering *toward* the fall pushes it back up. The bigger T − k, the faster both the falling and the steering response.
-   - **T − k clearly below 0** (Easy above `stable_speed`): the bike holds itself up at `lean_eq`, steering simply carves turns, and hands-off never falls.
-   - **T − k ≈ 0 is the dead zone:** steering barely moves the lean, so you can't balance. Don't tune an assist level onto it. (0.1.0 crossed it at about 13 km/h on Normal; since 0.2.0 Normal never does.)
+   Since 0.2.1 the defaults are the 0.1.0 ones (`self_stability` 6.5, `gravity_scale` 0.4 → T ≈ 3.9): Normal is T − k > 0 below ~13 km/h and T − k < 0 above it, so at cruising speed the bike holds itself up and you mostly balance when slow. 0.2.0 tried T − k > 0 at every speed and it was far too hard (KI-19).
+   - **T − k clearly above 0** (slow on Normal; every speed on Hard): the bike is an inverted pendulum. Nobody steering → it tips over within a few seconds (`speed_wobble` starts the drift). Steering *toward* the fall pushes it back up. The bigger T − k, the faster both the falling and the steering response.
+   - **T − k clearly below 0** (Easy and Normal above `stable_speed`): the bike holds itself up at `lean_eq`, steering simply carves turns, and hands-off never falls.
+   - **T − k ≈ 0 is the dead zone:** steering barely moves the lean, so you can't balance. Don't tune an assist level onto it. (Normal passes through it at about 13 km/h; riders only cross it, so that's fine. Hard stays well below it.)
    - The smoke test prints the time to fall with no pedalling, no steering and full steer at cruising speed (`[fall times]`).
 4. **Falling.** |lean| > `fall_angle_deg` → FALLING, and the bike tips to `fallen_rest_deg` and slides to a stop (`ground_friction`). Below `stall_speed` for `stall_fall_s` it tips over regardless. Rails and obstacles call `crash()`, which keeps `impact_speed_keep` of the speed. Potholes add a random `pothole_kick` to the lean rate instead.
    - **Crash effects** (visual only, "Crash effects" group in `bike_tuning`): a hard hit throws the rider (`rider_throw_keep`, `rider_throw_up`, `rider_tumble`), spins and bounces the bike (`crash_spin_deg_s`, `crash_hop`), shakes the camera (`shake_impact`) and plays slow motion (`slowmo_scale` for `slowmo_s` real seconds). Plain falls use `soft_fall_throw` and `shake_fall`. Cones and barriers you hit go flying and stop blocking the road. The crash camera (`road_tuning` "Crash camera" group) pulls back and orbits in both camera modes.

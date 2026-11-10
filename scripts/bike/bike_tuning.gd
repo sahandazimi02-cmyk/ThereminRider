@@ -46,25 +46,25 @@ const PATH := "res://data/bike_tuning.tres"
 
 @export_group("Balance")
 ## Scales gravity's tipping torque. 1 = real bike, lower = slower falls (assist).
-@export_range(0.05, 1.5, 0.01) var gravity_scale: float = 0.5
+@export_range(0.05, 1.5, 0.01) var gravity_scale: float = 0.4
 ## Self-righting (trail + gyroscope) strength at stable_speed and above (1/s^2).
 ## Must beat gravity_scale * 9.81 / com_height_m to be hands-free stable. Default
-## is below that (2.9 < 4.9), so on Normal someone always has to balance: stop
-## steering and the bike falls in a few seconds. Easy assist (x1.5) is above it.
-@export_range(0.0, 20.0, 0.1) var self_stability: float = 1.0
-## Below this speed there is no self-righting at all: wobbly zone (m/s). ~9 km/h.
-@export_range(0.2, 5.0, 0.05) var wobble_speed: float = 2.5
+## (6.5 > 3.9) is above that, so on Normal the bike holds itself up at speed and
+## you mostly balance at low speed (the 0.1.0 feel, restored in 0.2.1).
+@export_range(0.0, 20.0, 0.1) var self_stability: float = 6.5
+## Below this speed there is no self-righting at all: wobbly zone (m/s). ~6 km/h.
+@export_range(0.2, 5.0, 0.05) var wobble_speed: float = 1.7
 ## At and above this speed self-righting is full strength (m/s).
-@export_range(1.0, 12.0, 0.1) var stable_speed: float = 6.0
+@export_range(1.0, 12.0, 0.1) var stable_speed: float = 5.0
 ## Damping of lean rate (1/s).
 @export_range(0.0, 10.0, 0.05) var lean_damping: float = 2.2
 ## Random wobble at standstill (rad/s^2). Fades out as you reach wobble_speed.
 @export_range(0.0, 5.0, 0.01) var wobble_noise: float = 0.9
 ## Small random wobble at every speed (rad/s^2), so a bike nobody steers drifts off
-## balance instead of balancing perfectly forever.
-@export_range(0.0, 2.0, 0.01) var speed_wobble: float = 0.35
+## balance instead of balancing perfectly forever. 0 = off (0.1.0 feel).
+@export_range(0.0, 2.0, 0.01) var speed_wobble: float = 0.0
 ## Lean angle that counts as a fall.
-@export_range(15.0, 80.0, 0.5) var fall_angle_deg: float = 40.0
+@export_range(15.0, 80.0, 0.5) var fall_angle_deg: float = 42.0
 ## Below this speed for stall_fall_s the bike tips over no matter what.
 @export_range(0.0, 2.0, 0.01) var stall_speed: float = 0.6
 @export_range(0.2, 5.0, 0.05) var stall_fall_s: float = 0.6

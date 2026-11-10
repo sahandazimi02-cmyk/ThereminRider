@@ -10,7 +10,7 @@ const ASSIST_NAMES := ["Easy", "Normal", "Hard"]
 ## Keep Hard's self-stability well BELOW the tipping strength (see
 ## docs/TUNING.md "crossover"): near-equal values make steering lose its grip
 ## on the lean, which feels broken rather than hard.
-const ASSIST_SCALES := [Vector2(5.0, 0.75), Vector2(1.0, 1.0), Vector2(0.2, 1.2)]
+const ASSIST_SCALES := [Vector2(1.5, 0.75), Vector2(1.0, 1.0), Vector2(0.2, 1.2)]
 
 var mode: Mode = Mode.ENDLESS
 var assist: Assist = Assist.NORMAL

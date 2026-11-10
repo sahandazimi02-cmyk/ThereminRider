@@ -4,7 +4,7 @@
 
 | Player | Does | Game effect |
 |---|---|---|
-| Steerer (theremin pitch hand) | Hand toward FULL LEFT / STRAIGHT / FULL RIGHT spots | Steers the front wheel. Steering is also how you **balance**: steer *toward* the side you're falling to catch it, at any speed. Stop steering and the bike tips over within a few seconds (Normal/Hard; on Easy it holds itself up at speed). Holding full lock tips you over in about a second. |
+| Steerer (theremin pitch hand) | Hand toward FULL LEFT / STRAIGHT / FULL RIGHT spots | Steers the front wheel. Steering is also how you **balance**: below about 13 km/h, steer *toward* the side you're falling to catch it. Above that the bike mostly holds itself up, so steer smoothly; holding full lock at speed still tips you over. |
 | Steerer | Pull the hand out of range | Steering eases to straight and the HUD warns you. You can't get up after a crash without the hand present. |
 | Pedaller (stationary bike) | Pedal faster or slower | Speed = cadence × 0.105 m/s per RPM (90 RPM ≈ 34 km/h) |
 | Pedaller | Stop pedalling | The bike brakes quickly; below ~9 km/h it wobbles and tips over (about 4 s from cruising speed). |

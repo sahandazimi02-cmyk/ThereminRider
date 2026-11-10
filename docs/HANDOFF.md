@@ -1,6 +1,6 @@
 # Handoff: Theremin Rider
 
-**Last updated:** 2026-11-10 · **Version:** 0.2.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
+**Last updated:** 2026-11-10 · **Version:** 0.2.1 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
 
 ## 1. What this is
 
@@ -10,9 +10,9 @@ A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. 
 
 | Area | State |
 |---|---|
-| Bike physics, crash/get-up loop, both modes, HUD, menus | Done; bot-tested headless (Easy, Normal and Hard) |
+| Bike physics, crash/get-up loop, both modes, HUD, menus | Done; bot-tested headless (Easy and Normal pass; Hard fails the course again since 0.2.1, KI-03) |
 | Crash effects (thrown rider, spin, sparks, shake, slow motion, crash camera, knocked cones) | Done (0.2.0); checked in screenshots, not played by a human |
-| Balance feel | 0.2.0: Normal needs balancing at every speed and falls in a few seconds without steering or pedalling (KI-19). Needs a human playtest. |
+| Balance feel | 0.2.1: back to the 0.1.0 balance (self-balancing at speed, balance by steering when slow) because 0.2.0 was far too hard (KI-19). Stop-pedalling still falls in ~4 s. Next: small tuning steps from here with the user. |
 | Controller / keyboard play | Done. Not yet played by a human. |
 | OSC receive in Godot | Done; tested with `tools/osc_test_sender.py` |
 | Max patch (theremin → steer) | Generated and re-laid out into six columns (0.2.0), **not yet opened in Max** (KI-01) |
@@ -68,7 +68,7 @@ Key design decisions:
 ## 5. Next steps (suggested order)
 
 1. **Open `max/ThereminRider.maxpat` in Max 9**, fix anything that doesn't load (KI-01), calibrate, and confirm with Input check.
-2. **First human playtest with the controller**, then with the theremin. Check especially whether Normal's 0.2.0 balance is too hard (KI-19). Tune with TUNING.md's "Knobs to reach for first" table and log the results in CHANGELOG.
+2. **First human playtest with the controller**, then with the theremin. The user wants to tune balance from the 0.1.0 feel in small steps (KI-19); don't jump to 0.2.0-style "always unstable" again. Tune with TUNING.md's "Knobs to reach for first" table and log the results in CHANGELOG.
 3. **Build the pedal sensor** (MAX_SETUP.md, "Adding the stationary bike later") and turn on SEND PEDAL DATA. Tune `speed_per_rpm` so a comfortable real cadence gives the speed you want (0.2.0 default: 90 RPM ≈ 34 km/h).
 4. Decide Hard assist after playtesting (KI-03).
 5. Nice-to-haves: audio (wind/chain/crash), hills, more course tracks (`course_data.gd` is plain data), a proper art pass (replace `BikeModel` with a GLB; keep the `update_pose` API).

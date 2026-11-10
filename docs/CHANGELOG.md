@@ -2,6 +2,23 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.2.1: 2026-11-10, steering and balance back to 0.1.0
+
+Feedback on 0.2.0: everything else is good, but steering/balancing became far too hard. Back to the 0.1.0 balance for now; we'll tune from there.
+
+### Changed
+- Balance group restored to 0.1.0: `self_stability` 1.0 → 6.5, `gravity_scale` 0.5 → 0.4, `wobble_speed` 2.5 → 1.7, `stable_speed` 6 → 5, `fall_angle_deg` 40 → 42, `speed_wobble` 0.35 → 0 (the tunable stays, just off).
+- Easy assist self-stability ×5 → ×1.5 (the 0.1.0 value).
+- Kept from 0.2.0: the faster speed, `stop_brake` and harsher coasting, `stall_speed` 0.6 / `stall_fall_s` 0.6, all crash effects, potholes, Max patch.
+- Result at cruising speed (34 km/h): stop pedalling still falls in 4.2 s; hands off now stays up (was 2.5–4.5 s); full lock falls in 5.8 s (was ~0.8 s).
+
+### Tests
+- `[fall times]` checks now expect the restored feel: hands off at cruise stays up > 20 s, full steer still falls (< 10 s). Stop pedalling check unchanged (1.5–6.5 s).
+
+### Verified
+- Headless import: clean. Smoke test on Normal: all pass (endless 407 m in 45 s, 0 crashes; course 2:37.2, 0 crashes). Easy: all pass. Hard: fails the course again (58 crashes), the same as 0.1.0 (KI-03).
+- Not played by a human. No screenshots (nothing visual changed).
+
 ## 0.2.0: 2026-11-10, faster, harsher, more dramatic
 
 From the first feedback: bike a bit faster, crashes more dramatic, potholes more obvious, falling takes too long when the players stop, Max patch hard to read.

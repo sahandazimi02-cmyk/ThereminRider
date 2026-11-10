@@ -2,12 +2,12 @@
 
     python tools/make_maxpat.py max/ThereminRider.maxpat
 
-Layout: six columns, left to right in signal order. Each column is one job and
+Layout: seven columns, left to right in signal order. Each column is one job and
 talks to the others through named [s tr.x] / [r tr.x] pairs instead of long
 patch cords, so every column can be read (and changed) on its own:
 
-    1 AUDIO IN -> 2 CALIBRATE -> 3 STEERING -> 4 HAND PRESENT -> 5 PEDALS -> 6 TO GODOT
-       tr.pitch / tr.loudness     tr.cal.*                        tr.osc (everything for Godot)
+    1 AUDIO IN -> 2 CALIBRATE -> 3 STEERING -> 4 HAND PRESENT -> 5 ARDUINO -> 6 PEDALS -> 7 TO GODOT
+       tr.pitch / tr.loudness     tr.cal.*                         tr.pulse    tr.osc (everything for Godot)
 """
 import json
 import sys
@@ -24,6 +24,7 @@ COLORS = [          # panel colours, one per column
     [0.22, 0.28, 0.22, 0.35],
     [0.18, 0.30, 0.28, 0.35],
     [0.28, 0.26, 0.18, 0.35],
+    [0.20, 0.30, 0.34, 0.35],
     [0.32, 0.24, 0.18, 0.35],
     [0.26, 0.20, 0.32, 0.35],
 ]
@@ -90,6 +91,9 @@ class Column:
     def button(self, dx=0.0):
         return add("button", self.x + dx, self.y, 24.0, 24.0, ins=1, outs=1, otypes=["bang"], parameter_enable=0)
 
+    def inum(self, dx=0.0, w=50.0):
+        return add("number", self.x + dx, self.y, w, ins=1, outs=2, otypes=["", "bang"], parameter_enable=0)
+
     def toggle(self, dx=0.0, size=24.0):
         return add("toggle", self.x + dx, self.y, size, size, ins=1, outs=1, otypes=["int"], parameter_enable=0)
 
@@ -114,11 +118,12 @@ class Column:
 
 comment("THEREMIN RIDER  -  Max -> Godot bridge", 20, 10, 900, bold=True, size=18.0)
 comment("QUICK START:  1) click the speaker in column 1 (audio on)   2) calibrate in column 2   "
-        "3) check the hand light in column 4   4) start the game -> Input check", 20, 42, 1500, size=13.0)
+        "3) check the hand light in column 4   4) bike: pick the Arduino port in column 5, turn on SEND PEDAL DATA in column 6   "
+        "5) start the game -> Input check", 20, 42, 1500, size=13.0)
 comment("HOW TO READ THIS PATCH:  columns run left to right in signal order. Cables only connect things inside a column. "
         "Between columns, [s tr.name] sends to every [r tr.name] with the same name (no cable needed).\n"
         "Message boxes holding a number are the defaults loaded when the patch opens - click one to restore it. "
-        "Everything the game receives goes into [s tr.osc] and comes out of column 6.",
+        "Everything the game receives goes into [s tr.osc] and comes out of column 7.",
         20, 70, 1840, size=12.0, color=[0.8, 0.8, 0.8, 1.0])
 
 # ------------------------------------------------------------------ 1. audio in
@@ -292,9 +297,79 @@ link(p_pres, 0, s_osc4, 0)
 c.down(44)
 c.note("Set min pitch just below your FULL LEFT\n(or RIGHT) pitch. Pulling the hand away\n(zero-beat) should turn the light off.")
 
-# ------------------------------------------------------------------ 5. pedals
+# ------------------------------------------------------------------ 5. arduino (pedal sensor)
 
-c = Column(4, "PEDALS  (stationary bike)", "Sends /bike/cadence (RPM). Sensor not built yet.\nWhile OFF the game uses the controller A button.")
+c = Column(4, "ARDUINO  (pedal sensor)", "Reads the 'p' the Arduino sends once per\npedal turn over USB. Sends: tr.pulse")
+c.note("1) PORT: plug the Arduino in, click 'list\nports', then pick its COM port in the menu.", bold=True)
+c.down(44)
+list_btn = c.msg("list ports")
+menu = add("umenu", c.x + 90, c.y, 180.0, 22.0, ins=1, outs=3, otypes=["int", "", ""], parameter_enable=0)
+c.down()
+list_t = c.obj("t b b", ins=1, outs=2, otypes=["bang", "bang"])
+clear = c.msg("clear", 60)
+c.note("<- empties the menu", 112, w=150)
+link(list_btn, 0, list_t, 0)
+link(list_t, 1, clear, 0)
+link(clear, 0, menu, 0)
+c.down()
+prn_ports = c.msg("print")
+p_port = c.obj("prepend port", 90, ins=2, outs=1)
+link(list_t, 0, prn_ports, 0)
+link(menu, 1, p_port, 0)
+c.down()
+c.note("or edit + click:", w=100)
+port_msg = c.msg("port COM7", 110)
+c.down(40)
+
+c.note("2) SPEED: must match Serial.begin() in the sketch", bold=True)
+c.down(24)
+baud_a = c.msg("baud 9600")
+baud_b = c.msg("baud 115200", 100)
+c.down(40)
+
+c.note("3) READ (turns on when the patch opens)", bold=True)
+c.down(24)
+read_tog = c.toggle()
+lb_read = c.obj("loadbang", 40, ins=1, outs=1, otypes=["bang"])
+one = c.msg("1", 110)
+link(lb_read, 0, one, 0)
+link(one, 0, read_tog, 0)
+c.down(32)
+poll = c.obj("metro 10", ins=2, outs=1, otypes=["bang"])
+c.note("<- read the port 100x per second", 80, w=200)
+link(read_tog, 0, poll, 0)
+c.down(36)
+ser = c.obj("serial z 9600", ins=1, outs=2, otypes=["int", ""])
+c.note("<- 'z' = no port yet", 110, w=160)
+for src in (poll, p_port, port_msg, baud_a, baud_b, prn_ports):
+    link(src, 0, ser, 0)
+c.down(36)
+sel_p = c.obj("sel 112", ins=2, outs=2, otypes=["bang", ""])
+r_port = c.obj("route port", 120, ins=2, outs=2)
+link(ser, 0, sel_p, 0)
+link(ser, 1, r_port, 0)
+c.down()
+pulse_led = c.button()
+c.note("<- each 'p'", 30, w=80)
+it = c.obj("iter", 120, ins=1, outs=1)
+link(sel_p, 0, pulse_led, 0)
+link(r_port, 0, it, 0)
+c.down()
+s_pulse = c.send("tr.pulse")
+app = c.obj("prepend append", 120, ins=2, outs=1)
+link(pulse_led, 0, s_pulse, 0)
+link(it, 0, app, 0)
+link(app, 0, menu, 0)
+c.down(36)
+last_byte = c.inum()
+c.note("<- last byte received ('p' = 112)", 56, w=220)
+link(ser, 0, last_byte, 0)
+c.down(36)
+c.note("Other bytes (newlines etc.) are ignored. A\nserial error about port z when the patch\nopens is normal until you pick a port.")
+
+# ------------------------------------------------------------------ 6. pedals
+
+c = Column(5, "PEDALS  (stationary bike)", "Sends /bike/cadence (RPM). Turn ON to use the bike.\nWhile OFF the game uses the controller A button.")
 send_tog = c.toggle(size=32.0)
 c.note("SEND PEDAL DATA", 40, w=200, bold=True)
 c.down(44)
@@ -310,10 +385,13 @@ cad_slider_num = c.num(210)
 link(cad_slider, 0, cad_slider_num, 0)
 c.down(44)
 
-c.note("(b) SENSOR: bang 'pulse in' once per crank\nturn (e.g. Arduino reed switch -> [serial]\n-> [sel 1] -> here). Pulse timing -> RPM.", bold=False)
+c.note("(b) SENSOR: one pulse per crank turn, from\nthe Arduino (column 5, tr.pulse) or by\nclicking 'pulse in'. Pulse timing -> RPM.", bold=False)
 c.down(60)
+r_pulse = c.recv("tr.pulse")
+c.down()
 pulse = c.button()
 c.note("<- pulse in", 30, w=100)
+link(r_pulse, 0, pulse, 0)
 c.down()
 tbb = c.obj("t b b", ins=1, outs=2, otypes=["bang", "bang"])
 stop_del = c.obj("del 2000", 120, ins=2, outs=1, otypes=["bang"])
@@ -362,9 +440,9 @@ c.down()
 s_osc5 = c.send("tr.osc")
 link(p_cad, 0, s_osc5, 0)
 
-# ------------------------------------------------------------------ 6. to godot
+# ------------------------------------------------------------------ 7. to godot
 
-c = Column(5, "TO GODOT", "Everything sent to tr.osc goes out over UDP\nas OSC. Port must match the game (9100).")
+c = Column(6, "TO GODOT", "Everything sent to tr.osc goes out over UDP\nas OSC. Port must match the game (9100).")
 r_osc = c.recv("tr.osc")
 c.down(44)
 c.note("Same PC: 127.0.0.1. Other PC: edit the\nhost box to the game PC's IP, then click it.")
@@ -398,7 +476,7 @@ patch = {"patcher": {
     "fileversion": 1,
     "appversion": {"major": 9, "minor": 2, "revision": 0, "architecture": "x64", "modernui": 1},
     "classnamespace": "box",
-    "rect": [40.0, 80.0, 1920.0, 880.0],
+    "rect": [40.0, 80.0, 2240.0, 880.0],
     "gridsize": [15.0, 15.0],
     "boxes": boxes,
     "lines": lines,

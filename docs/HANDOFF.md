@@ -1,6 +1,6 @@
 # Handoff: Theremin Rider
 
-**Last updated:** 2026-11-10 · **Version:** 0.4.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
+**Last updated:** 2026-11-10 · **Version:** 0.4.1 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
 
 ## 1. What this is
 
@@ -17,8 +17,8 @@ A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. 
 | First-person view (0.4.0) | True first person: your arms, gloved hands and the handlebar are in view and turn with the steering. Model + camera are edited in `scenes/bike/bike_model.tscn` (TUNING.md). Checked in a screenshot, not played. |
 | Controller / keyboard play | Done. Not yet played by a human. |
 | OSC receive in Godot | Done; tested with `tools/osc_test_sender.py` |
-| Max patch (theremin → steer) | Generated and re-laid out into six columns (0.2.0), **not yet opened in Max** (KI-01) |
-| Stationary bike sensor | Not built. The Max patch has a test slider and a pulse→RPM placeholder. |
+| Max patch (theremin → steer) | Generated; seven columns since 0.4.1, **not yet opened in Max** (KI-01) |
+| Stationary bike sensor | The user's Arduino sends `p` over serial once per pedal turn. Max column 5 (0.4.1) reads it and feeds the existing pulse → RPM logic. Not yet tested with the Arduino in Max (KI-26). |
 | Audio, hills, art pass | Not started |
 
 ## 3. How to run
@@ -71,7 +71,7 @@ Key design decisions:
 
 1. **Open `max/ThereminRider.maxpat` in Max 9**, fix anything that doesn't load (KI-01), calibrate, and confirm with Input check.
 2. **First human playtest with the controller**, then with the theremin. 0.3.0 tuned for the theremin (slower, steering assist, forgiving rails); if it now feels too easy or "on rails", turn down `heading_assist` / `road_follow` / `rail_grace_s` first (TUNING.md knobs table). The user wants to tune balance from the 0.1.0 feel in small steps (KI-19); don't jump to 0.2.0-style "always unstable" again. Tune with TUNING.md's "Knobs to reach for first" table and log the results in CHANGELOG.
-3. **Build the pedal sensor** (MAX_SETUP.md, "Adding the stationary bike later") and turn on SEND PEDAL DATA. Tune `speed_per_rpm` so a comfortable real cadence gives the speed you want (0.3.0 default: 90 RPM ≈ 24 km/h).
+3. **Connect the Arduino pedal sensor** (MAX_SETUP.md, "The Arduino pedal sensor"): pick its port and baud rate in column 5, check the light flashes per turn, turn on SEND PEDAL DATA. Tune `speed_per_rpm` so a comfortable real cadence gives the speed you want (0.3.0 default: 90 RPM ≈ 24 km/h).
 4. Decide Hard assist after playtesting (KI-03).
 5. Nice-to-haves: audio (wind/chain/crash), hills, more course tracks (`course_data.gd` is plain data), a proper art pass (replace the generated meshes in `scenes/bike/bike_model.tscn` with a GLB; keep the `update_pose` / `first_person_transform` API and the `FirstPersonCamera` node).
 6. First-person feel: the user may want to adjust the camera/model in `bike_model.tscn`. If the view feels too wobbly or too stiff, try `fp_roll_factor` (1 = locked to the head).

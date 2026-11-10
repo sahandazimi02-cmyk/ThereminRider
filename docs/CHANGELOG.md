@@ -2,6 +2,22 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.4.1: 2026-11-10, Arduino pedal sensor in the Max patch
+
+### Added
+- **Max patch column 5, ARDUINO (pedal sensor):** reads the Arduino's `p` byte (one per pedal turn) with `[serial]`, picks out byte 112 with `[sel 112]` and sends a pulse on `tr.pulse`. Has a port menu (**list ports** fills it from `[serial]`'s port list), an editable `port COM7` box, baud buttons (9600 / 115200, opens at 9600), a READ toggle that turns on when the patch opens (`metro 10` polls the port), a light that flashes on each `p`, and a "last byte received" number for checking the baud rate. Line endings and other bytes are ignored.
+- The PEDALS column's **pulse in** now also listens to `[r tr.pulse]`, so Arduino pulses go through the existing timer → RPM → `/bike/cadence` logic unchanged.
+
+### Changed
+- The patch now has seven columns: PEDALS is column 6 and TO GODOT is column 7. Quick-start text and column notes updated.
+- `[serial z 9600]` starts on a port that doesn't exist, so opening the patch never tries a Bluetooth COM port (that can freeze Max for a while). Max logs a serial error about port z until you pick the real port.
+- MAX_SETUP.md: "Adding the stationary bike later" is now "The Arduino pedal sensor", with setup steps.
+
+### Verified
+- `tools/make_maxpat.py` runs with no `LAYOUT:` warnings. A script checked every cable's outlet/inlet index against the box's counts (0 bad) and traced the path `serial → sel 112 → s tr.pulse → r tr.pulse → pulse in → t b b → timer`.
+- Not opened in Max and no Arduino was connected (only Bluetooth COM ports on this PC), so the serial reading itself is untested (KI-26). No Godot code changed.
+- Headless import: exit 0, no script errors. Smoke test: everything passes except the same two speed checks as 0.4.0, which fail because of the uncommitted local edits in `data/bike_tuning.tres`.
+
 ## 0.4.0: 2026-11-10, true first person; bike and camera editable in Godot
 
 ### Added

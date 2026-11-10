@@ -96,10 +96,11 @@ const PATH := "res://data/road_tuning.tres"
 ## How much of the bike's lean the chase camera copies.
 @export_range(0.0, 1.0, 0.01) var chase_roll_factor: float = 0.1
 @export_range(40.0, 110.0, 1.0) var chase_fov_deg: float = 70.0
-## How much of the lean the first-person camera copies (1 = full).
+## How much of the lean the first-person view copies (1 = locked to the
+## rider's head, so the bars and arms stay still on screen). The first-person
+## position, angle and FOV are the FirstPersonCamera node in
+## scenes/bike/bike_model.tscn.
 @export_range(0.0, 1.0, 0.01) var fp_roll_factor: float = 0.45
-@export_range(-40.0, 10.0, 0.5) var fp_pitch_deg: float = -9.0
-@export_range(40.0, 110.0, 1.0) var fp_fov_deg: float = 78.0
 ## Extra field of view at speed_fov_full_mps and above (sense of speed).
 @export_range(0.0, 30.0, 0.5) var speed_fov_boost_deg: float = 8.0
 @export_range(2.0, 20.0, 0.1) var speed_fov_full_mps: float = 10.0

@@ -2,6 +2,25 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.4.0: 2026-11-10, true first person; bike and camera editable in Godot
+
+### Added
+- **True first-person view:** you see your own arms (shirt sleeves, bare forearms, gloved hands) holding the handlebar, the stem and the top of the front wheel. The bars, hands and arms turn with the steering. Arms now have elbows (two-bone IK, like the legs).
+- **`scenes/bike/bike_model.tscn`:** the bike/rider model is now a scene. `bike_model.gd` is `@tool`, so the model shows in the editor and every shape point is an Inspector field that rebuilds live. The `FirstPersonCamera` node in it sets the first-person position, angle and FOV (tick Preview to see the view in the editor). See TUNING.md "Bike model and first-person camera".
+- Palette colour `rider_glove`.
+
+### Changed
+- Rider posture is more upright (city-bike style) with a swept-back, slightly raised handlebar, so the bars and hands are in view without bending the camera straight down. The first-person eye moved back and down a little (1.56 m high), pitched 24° down, FOV 80.
+- `palette.gd` and `mesh_kit.gd` are `@tool` (needed for the editor preview; no behaviour change).
+
+### Removed
+- `road_tuning.fp_pitch_deg` and `fp_fov_deg`: the `FirstPersonCamera` node replaces them. `fp_roll_factor` stays.
+
+### Verified
+- Headless import: clean. Opened `bike_model.tscn` in the headless editor: no script errors (didn't look at the editor viewport itself).
+- Smoke test: every bike, camera, crash and course check passes. The two speed checks ("90 RPM stays under 29 km/h", "max_speed_kmh is reachable") fail because of uncommitted local edits in `data/bike_tuning.tres` (`speed_per_rpm` 0.09, `max_speed_kmh` 60), not this change.
+- Screenshots: looked at `first_person.png` (bars, hands and arms visible above the HUD gauge), `third_person.png` and `crash_landed.png` (rider and bike look right from behind). Didn't check a fall in first person or a hard turn on screen.
+
 ## 0.3.1: 2026-11-10, rail message fix, 45 km/h top speed
 
 ### Fixed

@@ -8,6 +8,16 @@ Every gameplay number lives in one of three Resources. Edit them in the Godot In
 | `data/input_tuning.tres` | `scripts/input/input_tuning.gd` | OSC port/addresses, theremin smoothing/deadzone/invert, pedal-stroke → RPM |
 | `data/road_tuning.tres` | `scripts/world/road_tuning.gd` | Lane width, rails, endless generator, obstacles, get-up rules, cameras, crash camera and shake |
 
+## Bike model and first-person camera (`scenes/bike/bike_model.tscn`)
+
+These are visual only, so they live in a scene instead of a `.tres`. Open `scenes/bike/bike_model.tscn` in Godot:
+
+- **Model:** select the root `BikeModel` node. The Inspector has every shape point in two groups: **Bike** (wheels, seat, head tube, `handlebar` position, `handlebar_half_width`, `handlebar_sweep`, `handlebar_rise`) and **Rider** (`hip`, `shoulder`, `head`, arm and leg lengths, `elbow_direction`, `show_rider`). The model rebuilds live in the viewport as you change them (the script is `@tool`). Positions are in metres; forward is -Z, up is +Y, the origin is on the ground between the wheels.
+- **First-person camera:** select the `FirstPersonCamera` child. Move and rotate it with the gizmo; its **FOV** is the in-game first-person FOV. Tick **Preview** in the viewport's top bar to see what the rider sees, and tick `preview_first_person` on `BikeModel` to hide the head and neck like the game does.
+- `fp_roll_factor` (in `road_tuning`, "Cameras" group) is how much the first-person view tilts with the bike's lean: 1 locks the view to the rider's head (bars and arms stay still on screen), lower keeps the horizon steadier. `speed_fov_boost_deg` is still added to the FOV at speed.
+- While the game runs (F5), the same values can be changed live in the **Remote** scene tree: `Game/Bike/Model` and `Game/Bike/Model/FirstPersonCamera`.
+- 0.4.0 removed `fp_pitch_deg` and `fp_fov_deg` from `road_tuning`; the camera node replaces them.
+
 The menu's **Balance assist** multiplies two bike values (`GameSession.ASSIST_SCALES`):
 
 | Assist | self_stability × | gravity_scale × |

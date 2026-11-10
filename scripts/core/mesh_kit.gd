@@ -1,3 +1,4 @@
+@tool
 ## Small helpers for building low-poly props out of primitive meshes.
 class_name MeshKit
 extends RefCounted

@@ -1,3 +1,4 @@
+@tool
 ## The only place colours are defined. Materials are cached per colour id.
 class_name Palette
 extends RefCounted
@@ -25,6 +26,7 @@ const COLORS := {
 	"rider_shirt": Color(0.20, 0.55, 0.85),
 	"rider_pants": Color(0.18, 0.20, 0.30),
 	"rider_skin": Color(0.93, 0.74, 0.60),
+	"rider_glove": Color(0.14, 0.14, 0.16),
 	"helmet": Color(0.98, 0.84, 0.25),
 	"cone": Color(0.98, 0.45, 0.10),
 	"cone_band": Color(0.96, 0.96, 0.96),

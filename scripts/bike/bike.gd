@@ -51,6 +51,10 @@ var last_crash_reason := ""
 ## game plays the big crash effects. False for plain balance/stall falls.
 var impact := false
 
+## Editable in the Godot editor: open this scene to change the bike, the rider
+## and the first-person camera.
+const MODEL_SCENE := preload("res://scenes/bike/bike_model.tscn")
+
 var model: BikeModel
 
 var _stall_t := 0.0
@@ -70,7 +74,7 @@ var _hop_v := 0.0
 func _ready() -> void:
 	if tuning == null:
 		tuning = BikeTuning.load_default()
-	model = BikeModel.new()
+	model = MODEL_SCENE.instantiate() as BikeModel
 	model.name = "Model"
 	add_child(model)
 	if noise_seed != 0:

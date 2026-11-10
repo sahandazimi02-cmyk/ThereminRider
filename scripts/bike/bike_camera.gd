@@ -74,12 +74,11 @@ func _update_head() -> void:
 
 
 func _first_person() -> void:
-	fov = tuning.fp_fov_deg
-	var eye := bike.global_transform * bike.model.eye_local()
-	var b := Basis(Vector3.UP, bike.yaw)
-	b = b * Basis(Vector3.BACK, -_roll * tuning.fp_roll_factor)
-	b = b * Basis(Vector3.RIGHT, deg_to_rad(tuning.fp_pitch_deg))
-	global_transform = Transform3D(b, eye)
+	# Placement and FOV come from the FirstPersonCamera node in
+	# scenes/bike/bike_model.tscn, so they're edited in the Godot editor.
+	fov = bike.model.first_person_fov()
+	var view := bike.model.first_person_transform(_roll * tuning.fp_roll_factor)
+	global_transform = Transform3D(Basis(Vector3.UP, bike.yaw) * view.basis, bike.global_transform * view.origin)
 
 
 func _chase(delta: float) -> void:

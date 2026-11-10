@@ -1,0 +1,16 @@
+# Godot 4
+.godot/
+/android/
+*.tmp
+
+# Exports
+/build/
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Python
+__pycache__/
+*.pyc

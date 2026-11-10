@@ -1,0 +1,232 @@
+## Headless self test. Run:
+##   Godot_console.exe --headless --path . --fixed-fps 60 res://scenes/test/smoke_test.tscn
+## Exit code 0 = all checks passed. A "balance bot" rides the bike through the
+## real game scene using RiderInput's override, so this also proves the bike is
+## balanceable with the current tuning.
+extends Node
+
+var failures := 0
+var trace := OS.get_environment("RIDER_TRACE") == "1"
+var _bot_lane := 1
+
+
+func _ready() -> void:
+	_run.call_deferred()
+
+
+func _check(cond: bool, what: String) -> void:
+	if cond:
+		print("  PASS  ", what)
+	else:
+		failures += 1
+		printerr("  FAIL  ", what)
+
+
+func _run() -> void:
+	if OS.get_environment("RIDER_OSC_PROBE") == "1":
+		await _osc_probe()
+		return
+	print("=== Theremin Rider smoke test ===")
+	_test_osc()
+	_test_cadence()
+	_test_road()
+	await _test_endless()
+	await _test_course()
+	print("=== %s (%d failure%s) ===" % ["OK" if failures == 0 else "FAILED", failures, "" if failures == 1 else "s"])
+	RiderInput.override_enabled = false
+	get_tree().quit(1 if failures > 0 else 0)
+
+
+## RIDER_OSC_PROBE=1: listen on the real UDP port for 4 s and report what
+## arrived (run tools/osc_test_sender.py or Max at the same time).
+func _osc_probe() -> void:
+	print("=== OSC probe: ", OscReceiver.status_text)
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < 4000:
+		await get_tree().process_frame
+	print("packets %d  steer %+.3f (fresh %s)  present %s  cadence %.1f (fresh %s)  -> RiderInput steer %s %+.3f, pedal %s %.1f RPM" % [
+			OscReceiver.packets_total, OscReceiver.steer, OscReceiver.steer_fresh(), OscReceiver.hand_present(),
+			OscReceiver.cadence_rpm, OscReceiver.cadence_fresh(),
+			RiderInput.source_name(RiderInput.steer_source), RiderInput.steer,
+			RiderInput.source_name(RiderInput.pedal_source), RiderInput.cadence_rpm])
+	get_tree().quit(0 if OscReceiver.packets_total > 0 else 1)
+
+
+func _test_osc() -> void:
+	print("[osc]")
+	var bytes := OscParser.encode_message("/bike/steer", [0.25])
+	var msgs := OscParser.parse_packet(bytes)
+	_check(msgs.size() == 1 and msgs[0]["address"] == "/bike/steer" and is_equal_approx(msgs[0]["args"][0], 0.25), "encode/parse float message")
+	var bundle := PackedByteArray()
+	bundle.append_array("#bundle".to_ascii_buffer())
+	bundle.append(0)
+	bundle.append_array(PackedByteArray([0, 0, 0, 0, 0, 0, 0, 1]))
+	for m: PackedByteArray in [OscParser.encode_message("/bike/cadence", [88.0]), OscParser.encode_message("/bike/steer/present", [1])]:
+		var spb := StreamPeerBuffer.new()
+		spb.big_endian = true
+		spb.put_32(m.size())
+		bundle.append_array(spb.data_array)
+		bundle.append_array(m)
+	msgs = OscParser.parse_packet(bundle)
+	_check(msgs.size() == 2 and msgs[1]["args"][0] == 1, "parse bundle with float + int")
+	OscReceiver.handle_message("/bike/steer", [-0.5])
+	_check(OscReceiver.steer_fresh() and is_equal_approx(OscReceiver.steer, -0.5), "receiver stores /bike/steer")
+
+
+func _test_cadence() -> void:
+	print("[cadence]")
+	var sc := StrokeCadence.new()
+	sc.configure(RiderInput.tuning)
+	for i in 6:
+		sc.add_stroke(10.0 + i / 3.0)
+	var rpm := sc.rpm(10.0 + 5.0 / 3.0 + 0.1)
+	_check(absf(rpm - 90.0) < 3.0, "3 taps/s = ~90 RPM (got %.1f)" % rpm)
+	_check(sc.rpm(30.0) == 0.0, "no taps = 0 RPM")
+
+
+func _test_road() -> void:
+	print("[road]")
+	var t := RoadTuning.load_default()
+	var w := RoadWorld.new()
+	w.setup(t, true, 1234)
+	add_child(w)
+	w.update_around(0.0)
+	var worst := 0.0
+	w.path.reset_hint(0.0)
+	for s in range(5, 400, 7):
+		var lat := sin(float(s)) * 2.0
+		var loc := w.path.locate(w.path.point_at(float(s), lat))
+		worst = maxf(worst, absf(loc.x - s) + absf(loc.y - lat))
+	_check(worst < 0.15, "locate() inverts point_at() (worst error %.3f m)" % worst)
+	var mi: MeshInstance3D = null
+	for c in w.get_children():
+		if c.name.begins_with("Chunk"):
+			mi = c.get_child(0) as MeshInstance3D
+			break
+	var up_ok := false
+	if mi != null:
+		var normals: PackedVector3Array = mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_NORMAL]
+		up_ok = normals.size() > 0 and normals[0].y > 0.9
+	_check(up_ok, "road surface faces up (winding)")
+	_check(w.obstacles.size() > 2, "endless spawned obstacles (%d)" % w.obstacles.size())
+	var drift := 0.0
+	for y in w.path.yaws:
+		drift = maxf(drift, absf(y - w.path.start_yaw))
+	_check(rad_to_deg(drift) <= t.max_heading_drift_deg + 1.0, "heading drift bounded (%.1f deg)" % rad_to_deg(drift))
+	w.queue_free()
+
+
+func _make_game(mode: GameSession.Mode) -> Game:
+	var game: Game = load("res://scenes/game.tscn").instantiate()
+	game.skip_countdown = true
+	game.force_mode = mode
+	game.world_seed = 777
+	game.record_scores = false
+	# RIDER_ASSIST=0/1/2 tries Easy/Normal/Hard (default Normal).
+	var a := OS.get_environment("RIDER_ASSIST")
+	GameSession.assist = (int(a) if a.is_valid_int() else 1) as GameSession.Assist
+	add_child(game)
+	return game
+
+
+## Simple rider AI: lean toward where we want to go, steer toward the lean.
+func _bot(game: Game, cadence: float) -> void:
+	var bike := game.bike
+	var road := game.road
+	if game.phase == Game.Phase.FALLEN:
+		RiderInput.override_steer = 0.0
+		RiderInput.override_cadence = 60.0
+		return
+	# Pick a lane with nothing in it for the next 40 m.
+	var blocked := func(lane: int) -> bool:
+		for o in road.obstacles:
+			if o.s > game.bike_s - 1.0 and o.s < game.bike_s + 40.0 and road.lane_of(o.lateral) == lane:
+				return true
+		return false
+	if blocked.call(_bot_lane) and not blocked.call(1 - _bot_lane):
+		_bot_lane = 1 - _bot_lane
+	var target := road.lane_center(_bot_lane)
+	# Path following: aim at a point ahead in the target lane.
+	var aim := road.path.point_at(game.bike_s + maxf(6.0, bike.speed * 1.4), target)
+	var to := aim - bike.position
+	var desired_yaw := atan2(-to.x, -to.z)
+	var heading_err := wrapf(bike.yaw - desired_yaw, -PI, PI)  # + = need to go right
+	var steer_path := 2.5 * heading_err - 0.25 * (bike.lean - bike.lean_eq)
+	# Balance (below the self-stable speed): path -> desired turn rate -> the
+	# lean that turn needs; steer for the turn plus toward any extra lean.
+	var t := bike.tuning
+	var v := maxf(bike.speed, 0.5)
+	var yaw_rate_des := clampf(1.2 * heading_err, -0.8, 0.8)
+	var lean_des := clampf(atan(v * yaw_rate_des / Bike.G), -0.35, 0.35)
+	var max_steer := deg_to_rad(lerpf(t.max_steer_deg_slow, t.max_steer_deg_fast, smoothstep(0.0, t.fast_speed, bike.speed)))
+	var ff := clampf(atan(t.wheelbase_m * yaw_rate_des / v) / max_steer, -1.0, 1.0)
+	ff = signf(ff) * pow(absf(ff), 1.0 / t.steer_expo)
+	var steer_bal := ff + 3.0 * (bike.lean - lean_des) + 0.6 * bike.lean_rate
+	var tip := t.gravity_scale * bike.assist_scale.y * Bike.G / t.com_height_m
+	var w := clampf((bike.stability_k - tip) * 0.5 + 0.5, 0.0, 1.0)
+	RiderInput.override_steer = clampf(lerpf(steer_bal, steer_path, w), -1.0, 1.0)
+	RiderInput.override_cadence = cadence
+	if trace and Engine.get_physics_frames() % 20 == 0:
+		print("    t=%.1f st=%s v=%.1f lean=%.1f eq=%.1f k=%.1f w=%.2f s=%.1f lat=%.2f steer=%.2f" % [
+				Engine.get_physics_frames() / 60.0, bike.state_name(), bike.speed, rad_to_deg(bike.lean),
+				rad_to_deg(bike.lean_eq), bike.stability_k, w, game.bike_s, game.bike_lat, RiderInput.override_steer])
+
+
+func _test_endless() -> void:
+	print("[endless ride]")
+	RiderInput.override_enabled = true
+	var game := _make_game(GameSession.Mode.ENDLESS)
+	var top_speed := 0.0
+	for _f in 60 * 45:
+		_bot(game, 90.0)
+		await get_tree().physics_frame
+		top_speed = maxf(top_speed, game.bike.speed)
+	print("    45 s: distance %.0f m, crashes %d, top speed %.1f km/h" % [game.distance, game.crashes, top_speed * 3.6])
+	_check(top_speed > 6.0, "pedalling 90 RPM reaches > 21 km/h")
+	_check(game.distance > 200.0, "bot rides > 200 m in 45 s")
+	_check(game.crashes <= 3, "bot can balance (<= 3 crashes in 45 s)")
+
+	# Stop pedalling -> must fall.
+	var fell := false
+	if game.phase == Game.Phase.PLAY:
+		for _f in 60 * 30:
+			_bot(game, 0.0)
+			await get_tree().physics_frame
+			if game.phase == Game.Phase.FALLEN:
+				fell = true
+				break
+	_check(fell, "stopping pedalling makes the bike fall (%s)" % game.bike.last_crash_reason)
+
+	# Co-op get-up: pedal + centred steering.
+	var back_up := false
+	for _f in 60 * 8:
+		RiderInput.override_steer = 0.0
+		RiderInput.override_cadence = 60.0
+		await get_tree().physics_frame
+		if game.phase == Game.Phase.PLAY:
+			back_up = true
+			break
+	_check(back_up, "pedal + hold centre gets the bike back up")
+	_check(game.bike.state == Bike.State.FOOT_DOWN, "respawn starts with foot down")
+	game.queue_free()
+	await get_tree().process_frame
+
+
+func _test_course() -> void:
+	print("[course ride]")
+	RiderInput.override_enabled = true
+	_bot_lane = 1
+	var game := _make_game(GameSession.Mode.COURSE)
+	_check(game.road.finish_s > 1000.0, "course has a finish line (%.0f m)" % game.road.finish_s)
+	var finished := false
+	for _f in 60 * 400:
+		_bot(game, 95.0)
+		await get_tree().physics_frame
+		if game.phase == Game.Phase.FINISHED:
+			finished = true
+			break
+	print("    course: time %s, crashes %d, reached %.0f m" % [UiKit.format_time(game.elapsed), game.crashes, game.bike_s])
+	_check(finished, "bot finishes the course")
+	game.get_tree().paused = false
+	game.queue_free()
+	await get_tree().process_frame

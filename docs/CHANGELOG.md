@@ -2,6 +2,30 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.3.0: 2026-11-10, slower, steadier, more forgiving
+
+Feedback: the bike is too fast and speeds up too fast; theremin steering is still too hard (steers too much, too much sway); hitting the side should not be an instant fail; the start should be a straight, easy road and difficulty should ramp more slowly (course and endless).
+
+### Changed
+- **Road 25 % wider:** `lane_width_m` 2.6 → 3.25 (range raised to 5). Cones/barriers scale with the lane, so they still leave the other lane free.
+- **Slower bike:** `speed_per_rpm` 0.105 → 0.075 (90 RPM ≈ 24 km/h, was 34), `max_accel` 3.0 → 1.5, `pedal_response` 1.1 → 0.55, `launch_speed` 2.2 → 1.8.
+- **Less sensitive steering:** `max_steer_deg_slow` 30 → 22, `max_steer_deg_fast` 6 → 4, `fast_speed` 9 → 7, `steer_expo` 1.3 → 1.6 (softer centre), `steer_rate_deg_s` 160 → 90 (turns slower). Theremin: `osc_steer_deadzone` 0.03 → 0.06, `osc_steer_smoothing_s` 0.05 → 0.15.
+- **New "fake" steering assist** (`bike_tuning` "Steering assist" group): `road_follow` 0.6 (the bike follows 60 % of each curve by itself) and `heading_assist` 1.2/s (heading eases back to the road direction, so holding steer moves you across the road at a steady angle and letting go straightens you out). Kinematic only, never tips the bike.
+- **Less sway:** new `lean_assist` 2.0 (always-on pull toward the balanced lean), `self_stability` 6.5 → 8, `lean_damping` 2.2 → 3.2, `wobble_noise` 0.9 → 0.6, `wobble_speed` 1.7 → 1.3, `stable_speed` 5 → 3.8. Cameras copy less of the lean: `chase_roll_factor` 0.15 → 0.1, `fp_roll_factor` 0.65 → 0.45.
+- **Forgiving rails:** touching a rail no longer crashes. The bike scrapes along it (sparks, small shake, "RAIL! Steer LEFT/RIGHT – x.x s"), slows, is turned away and its lean is calmed. You crash only after `rail_grace_s` (2.5 s) of rail time; it drains 1.5× as fast when you're off. New `road_tuning` "Guard rails" group. Obstacles still crash you.
+- **Easy start, slower ramp:**
+  - Endless: new `endless_intro_m` 300 m straight after the start straight, with only a couple of obstacles; difficulty starts after it. `difficulty_ramp_m` 3000 → 6000 and new `difficulty_curve` 1.6 (stays easy longer: ~6 % after 1 km, 33 % after 3 km, max at 6 km). `obstacle_gap_easy_m` 70 → 100, `obstacle_gap_hard_m` 28 → 35, `curve_radius_easy_m` 160 → 220, `curve_radius_hard_m` 55 → 70.
+  - Course: opening straight 140 → 300 m with one cone group in the other lane, first two curves gentler (radius 120 → 180, 90 → 130), all other obstacles moved 160 m later. Finish now at 1720 m.
+
+### Tests
+- New `[rail scrape]`: touching the rail doesn't crash, steering away recovers, staying on it crashes.
+- Speed checks: 90 RPM reaches > 18 km/h and stays < 29 km/h.
+- `[fall times]`: full steer at cruise is now a steady turn rather than a fall (gentler steering); that line now ends at the rail instead.
+
+### Verified
+- Headless import: clean. Smoke test Normal: all pass (fall times: stop pedalling 3.2 s, hands off / full steer stay up; endless 286 m in 45 s, 0 crashes, top 24.3 km/h; course 4:02.7, 0 crashes). Easy: all pass. Hard: fails the course (11 crashes) and the rail-recovery check (the bot can't hold the Hard bike up while forced onto the rail), KI-03.
+- Screenshots retaken; looked at `third_person.png` (wider road, straight start) and `course.png`. Didn't look at the others. Not played by a human, and not tried with the theremin.
+
 ## 0.2.1: 2026-11-10, steering and balance back to 0.1.0
 
 Feedback on 0.2.0: everything else is good, but steering/balancing became far too hard. Back to the 0.1.0 balance for now; we'll tune from there.

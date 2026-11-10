@@ -36,7 +36,9 @@ func setup(road_tuning: RoadTuning, is_endless: bool, seed_value: int = 0) -> vo
 	path = RoadPath.new(tuning.sample_step_m)
 	path.append_straight(tuning.start_straight_m)
 	if endless:
-		_next_obstacle_s = tuning.start_straight_m + tuning.obstacle_gap_easy_m * 0.5
+		# Warm-up: a long straight with only a couple of obstacles on it.
+		path.append_straight(tuning.endless_intro_m)
+		_next_obstacle_s = tuning.start_straight_m + maxf(tuning.endless_intro_m * 0.4, tuning.obstacle_gap_easy_m * 0.5)
 		_extend_endless(tuning.view_ahead_m + tuning.chunk_length_m * 2.0)
 	else:
 		_build_course()
@@ -51,6 +53,12 @@ func lane_center(lane: int) -> float:
 
 func lane_of(lateral: float) -> int:
 	return 0 if lateral < 0.0 else 1
+
+
+## Road curvature at s in rad/m (+ = bends right), averaged over a few metres.
+func curvature_at(s: float) -> float:
+	var h := 2.0
+	return -wrapf(path.yaw_at(s + h) - path.yaw_at(s - h), -PI, PI) / (2.0 * h)
 
 
 ## Lateral distance from the centre line to the rail face.
@@ -110,7 +118,8 @@ func reset_obstacles() -> void:
 ## Updates generation/streaming for a bike at distance s.
 func update_around(s: float) -> void:
 	if endless:
-		difficulty = clampf((s - tuning.start_straight_m) / tuning.difficulty_ramp_m, 0.0, 1.0)
+		var x := clampf((s - tuning.start_straight_m - tuning.endless_intro_m) / tuning.difficulty_ramp_m, 0.0, 1.0)
+		difficulty = pow(x, tuning.difficulty_curve)
 		if path.length() < s + tuning.view_ahead_m + tuning.chunk_length_m * 2.0:
 			_extend_endless(s + tuning.view_ahead_m + tuning.chunk_length_m * 3.0)
 	_stream_chunks(s)

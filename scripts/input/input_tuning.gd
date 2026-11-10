@@ -28,9 +28,9 @@ const PATH := "res://data/input_tuning.tres"
 ## Multiplies the incoming value before clamping to -1..1.
 @export_range(0.2, 3.0, 0.01) var osc_steer_gain: float = 1.0
 ## Values this close to 0 count as straight.
-@export_range(0.0, 0.3, 0.005) var osc_steer_deadzone: float = 0.03
+@export_range(0.0, 0.3, 0.005) var osc_steer_deadzone: float = 0.06
 ## Extra smoothing in Godot on top of Max's [slide] (seconds).
-@export_range(0.0, 0.5, 0.005) var osc_steer_smoothing_s: float = 0.05
+@export_range(0.0, 0.5, 0.005) var osc_steer_smoothing_s: float = 0.15
 ## When the hand leaves the theremin, steering eases to straight this fast.
 @export_range(0.05, 2.0, 0.01) var steer_absent_return_s: float = 0.35
 

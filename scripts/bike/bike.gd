@@ -1,6 +1,10 @@
 ## The bicycle: speed from pedalling, heading from steering, and a lean
 ## (balance) simulation. The game calls step() every physics tick.
 ##
+## On top of the physics, a fake steering assist (0.3.0, for the theremin): the
+## bike follows part of the road's curve and its heading eases back toward the
+## road, so steering moves you across the road instead of spinning you round.
+##
 ## Balance model (inverted pendulum + steering):
 ##   lean_acc = gravity_scale * g/h * (sin(lean) - cos(lean) * lat_accel / g)
 ##              - k(v) * (lean - lean_eq) - damping * lean_rate + wobble
@@ -24,6 +28,12 @@ var tuning: BikeTuning
 var assist_scale := Vector2.ONE
 ## 0 = random wobble each run. Tests set a fixed seed so runs repeat exactly.
 var noise_seed := 0
+## Set by the game every tick before step(): the road's heading and curvature
+## (rad/m, + = bends right) under the bike. Drives the fake steering assist.
+## Without a road (unit tests) the assist is off.
+var has_road := false
+var road_yaw := 0.0
+var road_curvature := 0.0
 
 var state: State = State.FOOT_DOWN
 var speed := 0.0
@@ -139,7 +149,7 @@ func step(dt: float, steer_in: float, cadence_rpm: float) -> void:
 	steer_angle = move_toward(steer_angle, steer_target, deg_to_rad(t.steer_rate_deg_s) * dt)
 	yaw_rate = speed * tan(steer_angle) / t.wheelbase_m if is_upright() else 0.0
 	lat_accel = speed * yaw_rate
-	yaw -= yaw_rate * dt
+	yaw -= (yaw_rate + _assist_yaw_rate()) * dt
 	if is_upright():
 		position += forward() * speed * dt
 	else:
@@ -185,7 +195,7 @@ func step(dt: float, steer_in: float, cadence_rpm: float) -> void:
 func _step_balance(dt: float) -> void:
 	var t := tuning
 	var gs := t.gravity_scale * assist_scale.y
-	stability_k = t.self_stability * assist_scale.x * smoothstep(t.wobble_speed, t.stable_speed, speed)
+	stability_k = (t.self_stability * smoothstep(t.wobble_speed, t.stable_speed, speed) + t.lean_assist) * assist_scale.x
 	lean_eq = atan2(lat_accel, G)
 	var pend := gs * (G / t.com_height_m) * (sin(lean) - cos(lean) * lat_accel / G)
 	var wobble := (t.wobble_noise * (1.0 - smoothstep(0.0, t.wobble_speed, speed)) + t.speed_wobble) * _noise(dt)
@@ -227,6 +237,35 @@ func crash(reason: String, side: float = 0.0, bounce: Vector3 = Vector3.ZERO) ->
 	_hop_y = 0.001
 	impact = true
 	_start_fall(reason, side)
+
+
+## Fake steering (kinematic, not part of the lean physics): follow some of the
+## road's curve and ease the heading back toward the road direction. Returns a
+## yaw rate in the same sense as yaw_rate (+ = turning right).
+func _assist_yaw_rate() -> float:
+	if not has_road or state != State.RIDING:
+		return 0.0
+	var rel := wrapf(yaw - road_yaw, -PI, PI)  # + = pointing left of the road
+	return tuning.road_follow * speed * road_curvature + tuning.heading_assist * rel
+
+
+## Called by the game while the bike rubs along a guard rail. Instead of a
+## crash, the rail turns the bike away (toward away_deg off the road heading),
+## slows it and calms the lean. side: +1 = right rail, -1 = left rail.
+func scrape_rail(dt: float, side: float, rail_yaw: float, decel: float, away_deg: float, turn_deg_s: float, lean_calm: float) -> void:
+	if state != State.RIDING and state != State.FOOT_DOWN:
+		return
+	speed = maxf(0.0, speed - decel * dt)
+	var rel := wrapf(yaw - rail_yaw, -PI, PI)  # + = pointing left
+	var want := side * deg_to_rad(away_deg)  # right rail -> point left
+	if rel * side < deg_to_rad(away_deg):
+		rel = move_toward(rel, want, deg_to_rad(turn_deg_s) * dt)
+		yaw = rail_yaw + rel
+	# Steering into the rail is pointless; straighten the front wheel a bit.
+	if steer_angle * side > 0.0:
+		steer_angle = move_toward(steer_angle, 0.0, deg_to_rad(turn_deg_s) * dt)
+	lean_rate *= exp(-lean_calm * dt)
+	_update_model()
 
 
 func hit_pothole() -> void:

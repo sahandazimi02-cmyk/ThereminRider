@@ -17,14 +17,14 @@ const PATH := "res://data/bike_tuning.tres"
 @export_range(0.1, 0.6, 0.01) var collision_half_width_m: float = 0.28
 
 @export_group("Pedalling -> speed")
-## Bike speed (m/s) per crank RPM. 0.105 => 90 RPM ~ 34 km/h.
-@export_range(0.02, 0.2, 0.001) var speed_per_rpm: float = 0.105
+## Bike speed (m/s) per crank RPM. 0.075 => 90 RPM ~ 24 km/h (0.3.0; was 0.105 / 34 km/h).
+@export_range(0.02, 0.2, 0.001) var speed_per_rpm: float = 0.075
 ## Cadence above this is ignored (stops tap-mashing from going silly).
 @export_range(60.0, 250.0, 1.0) var max_cadence_rpm: float = 150.0
 ## How fast speed chases the pedalling target speed (1/s).
-@export_range(0.1, 5.0, 0.05) var pedal_response: float = 1.1
+@export_range(0.1, 5.0, 0.05) var pedal_response: float = 0.55
 ## Cap on forward acceleration from pedalling (m/s^2).
-@export_range(0.5, 6.0, 0.1) var max_accel: float = 3.0
+@export_range(0.5, 6.0, 0.1) var max_accel: float = 1.5
 ## Speed lost per second while coasting (pedalling slower than the bike is moving).
 @export_range(0.0, 3.0, 0.01) var coast_decel: float = 1.0
 ## Air drag while coasting: decel = coast_decel + drag * v^2.
@@ -35,31 +35,44 @@ const PATH := "res://data/bike_tuning.tres"
 
 @export_group("Steering")
 ## Max front-wheel angle at walking speed.
-@export_range(5.0, 50.0, 0.5) var max_steer_deg_slow: float = 30.0
+@export_range(5.0, 50.0, 0.5) var max_steer_deg_slow: float = 22.0
 ## Max front-wheel angle at fast_speed and above (fast bikes need tiny steering).
-@export_range(1.0, 20.0, 0.25) var max_steer_deg_fast: float = 6.0
-@export_range(2.0, 20.0, 0.1) var fast_speed: float = 9.0
+@export_range(1.0, 20.0, 0.25) var max_steer_deg_fast: float = 4.0
+@export_range(2.0, 20.0, 0.1) var fast_speed: float = 7.0
 ## 1 = linear, 2 = soft centre / sharp edges.
-@export_range(1.0, 3.0, 0.05) var steer_expo: float = 1.3
+@export_range(1.0, 3.0, 0.05) var steer_expo: float = 1.6
 ## How fast the front wheel can turn (deg/s). Filters theremin jitter.
-@export_range(20.0, 600.0, 5.0) var steer_rate_deg_s: float = 160.0
+@export_range(20.0, 600.0, 5.0) var steer_rate_deg_s: float = 90.0
+
+@export_group("Steering assist (fake, for the theremin)")
+## How much of the road's curve the bike follows by itself (0 = none, 1 = all).
+## Kinematic only: it turns the bike but does not tip it.
+@export_range(0.0, 1.0, 0.01) var road_follow: float = 0.6
+## Pulls the bike's heading back toward the road direction (1/s). With steering
+## held, the bike settles at an angle to the road instead of turning in circles;
+## let go and it straightens out along the road. 0 = off (pre-0.3.0 feel).
+@export_range(0.0, 5.0, 0.05) var heading_assist: float = 1.2
+## Gently pulls the lean back toward upright/curve lean at every speed (1/s^2),
+## on top of self_stability. Takes the sway out, mostly at low speed.
+@export_range(0.0, 10.0, 0.1) var lean_assist: float = 2.0
 
 @export_group("Balance")
 ## Scales gravity's tipping torque. 1 = real bike, lower = slower falls (assist).
 @export_range(0.05, 1.5, 0.01) var gravity_scale: float = 0.4
 ## Self-righting (trail + gyroscope) strength at stable_speed and above (1/s^2).
 ## Must beat gravity_scale * 9.81 / com_height_m to be hands-free stable. Default
-## (6.5 > 3.9) is above that, so on Normal the bike holds itself up at speed and
-## you mostly balance at low speed (the 0.1.0 feel, restored in 0.2.1).
-@export_range(0.0, 20.0, 0.1) var self_stability: float = 6.5
-## Below this speed there is no self-righting at all: wobbly zone (m/s). ~6 km/h.
-@export_range(0.2, 5.0, 0.05) var wobble_speed: float = 1.7
+## (8.0 > 3.9) is well above that, so on Normal the bike holds itself up at speed and
+## you mostly balance at low speed (the 0.1.0 feel, restored in 0.2.1; 0.3.0 made
+## it a bit steadier still).
+@export_range(0.0, 20.0, 0.1) var self_stability: float = 8.0
+## Below this speed there is no self-righting at all: wobbly zone (m/s). ~5 km/h.
+@export_range(0.2, 5.0, 0.05) var wobble_speed: float = 1.3
 ## At and above this speed self-righting is full strength (m/s).
-@export_range(1.0, 12.0, 0.1) var stable_speed: float = 5.0
+@export_range(1.0, 12.0, 0.1) var stable_speed: float = 3.8
 ## Damping of lean rate (1/s).
-@export_range(0.0, 10.0, 0.05) var lean_damping: float = 2.2
+@export_range(0.0, 10.0, 0.05) var lean_damping: float = 3.2
 ## Random wobble at standstill (rad/s^2). Fades out as you reach wobble_speed.
-@export_range(0.0, 5.0, 0.01) var wobble_noise: float = 0.9
+@export_range(0.0, 5.0, 0.01) var wobble_noise: float = 0.6
 ## Small random wobble at every speed (rad/s^2), so a bike nobody steers drifts off
 ## balance instead of balancing perfectly forever. 0 = off (0.1.0 feel).
 @export_range(0.0, 2.0, 0.01) var speed_wobble: float = 0.0
@@ -71,7 +84,7 @@ const PATH := "res://data/bike_tuning.tres"
 
 @export_group("Start / foot down")
 ## While starting (foot on the ground) the bike stays upright until this speed.
-@export_range(0.3, 5.0, 0.05) var launch_speed: float = 2.2
+@export_range(0.3, 5.0, 0.05) var launch_speed: float = 1.8
 ## Steering is this much weaker while the foot is down.
 @export_range(0.0, 1.0, 0.05) var foot_down_steer_factor: float = 0.5
 

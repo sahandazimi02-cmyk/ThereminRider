@@ -7,7 +7,7 @@ A two-player co-op bicycle game (Godot 4.7.2).
 
 Both signals go through **Max (Cycling '74)**, which sends **OSC over UDP** to the game. A controller/keyboard version is built in for playtesting without the hardware.
 
-Ride a 2-lane road with guard rails. Hitting a rail or an obstacle knocks you down. To get back up, both players work together: the pedaller pedals while the steerer holds the steering centred.
+Ride a 2-lane road with guard rails. Hitting an obstacle knocks you down; touching a rail scrapes along it and only knocks you down if you stay on it for a few seconds. To get back up, both players work together: the pedaller pedals while the steerer holds the steering centred.
 
 ![third person](docs/screenshots/third_person.png)
 

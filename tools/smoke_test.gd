@@ -32,6 +32,7 @@ func _run() -> void:
 	_test_road()
 	_test_fall_times()
 	await _test_crash_fx()
+	await _test_rail()
 	await _test_endless()
 	await _test_course()
 	print("=== %s (%d failure%s) ===" % ["OK" if failures == 0 else "FAILED", failures, "" if failures == 1 else "s"])
@@ -132,7 +133,9 @@ func _test_fall_times() -> void:
 	_check(stop_pedal > 1.5 and stop_pedal < 6.5, "stop pedalling falls in 1.5-6.5 s (%.1f s)" % stop_pedal)
 	# 0.2.1 restored the 0.1.0 balance: Normal self-balances at cruising speed.
 	_check(hands_off > 20.0, "no steering at cruise stays up (self-balancing, %.1f s)" % hands_off)
-	_check(full_steer < 10.0, "holding full steer still falls (%.1f s)" % full_steer)
+	# 0.3.0: steering is gentler, so full steer at cruise is a steady turn, not a
+	# fall. On the road that line ends at the rail instead (see [rail scrape]).
+	_check(full_steer > 20.0, "full steer at cruise is a steady turn, not a fall (%.1f s)" % full_steer)
 
 
 ## steer_mode: "balance" = simple balancing rider, "none" = steer 0, "full" = steer +1.
@@ -170,7 +173,7 @@ func _test_crash_fx() -> void:
 	for _f in 60 * 20:
 		_bot(game, 90.0)
 		await get_tree().physics_frame
-		if game.phase == Game.Phase.PLAY and game.bike.state == Bike.State.RIDING and game.bike.speed > 7.0:
+		if game.phase == Game.Phase.PLAY and game.bike.state == Bike.State.RIDING and game.bike.speed > 5.5:
 			break
 	var model := game.bike.model
 	var start := model.rider_focus()
@@ -202,6 +205,53 @@ func _test_crash_fx() -> void:
 		if game.phase == Game.Phase.PLAY:
 			break
 	_check(game.phase == Game.Phase.PLAY and not model.thrown, "get-up puts the rider back on the bike")
+	game.queue_free()
+	await get_tree().process_frame
+
+
+## Forgiving rails: steering into a rail scrapes along it for a while instead of
+## crashing at once; letting go recovers; holding into it long enough crashes.
+func _test_rail() -> void:
+	print("[rail scrape]")
+	RiderInput.override_enabled = true
+	var game := _make_game(GameSession.Mode.ENDLESS)
+	for _f in 60 * 20:
+		_bot(game, 90.0)
+		await get_tree().physics_frame
+		if game.phase == Game.Phase.PLAY and game.bike.state == Bike.State.RIDING and game.bike.speed > 5.0:
+			break
+	var crashes0 := game.crashes
+	var touched := false
+	for _f in 60 * 1:
+		RiderInput.override_cadence = 90.0
+		RiderInput.override_steer = 1.0
+		await get_tree().physics_frame
+	# Push it onto the right rail if the steering alone hasn't got there yet.
+	for _f in 60 * 2:
+		RiderInput.override_cadence = 90.0
+		RiderInput.override_steer = 1.0
+		if game.rail_time <= 0.0 and game.bike.is_upright():
+			game.bike.position = game.road.path.point_at(game.bike_s, game.road.rail_offset())
+		await get_tree().physics_frame
+		touched = touched or game.rail_time > 0.0
+		if game.rail_time > 0.5:
+			break
+	_check(touched and game.crashes == crashes0 and game.bike.is_upright(), "touching the rail does not crash at once (rail time %.2f s)" % game.rail_time)
+	for _f in 60 * 3:
+		_bot(game, 90.0)
+		await get_tree().physics_frame
+	_check(game.crashes == crashes0 and game.rail_time < 0.5, "steering away from the rail recovers (rail time %.2f s, %s)" % [game.rail_time, game.bike.state_name()])
+	var crashed := false
+	for _f in 60 * 8:
+		RiderInput.override_cadence = 90.0
+		RiderInput.override_steer = 1.0
+		if game.bike.is_upright():
+			game.bike.position = game.road.path.point_at(game.bike_s, game.road.rail_offset())
+		await get_tree().physics_frame
+		if game.phase == Game.Phase.FALLEN:
+			crashed = true
+			break
+	_check(crashed and game.bike.last_crash_reason.contains("rail"), "staying on the rail long enough crashes (%s)" % game.bike.last_crash_reason)
 	game.queue_free()
 	await get_tree().process_frame
 
@@ -300,7 +350,8 @@ func _test_endless() -> void:
 		await get_tree().physics_frame
 		top_speed = maxf(top_speed, game.bike.speed)
 	print("    45 s: distance %.0f m, crashes %d, top speed %.1f km/h" % [game.distance, game.crashes, top_speed * 3.6])
-	_check(top_speed > 6.0, "pedalling 90 RPM reaches > 21 km/h")
+	_check(top_speed > 5.0, "pedalling 90 RPM reaches > 18 km/h")
+	_check(top_speed < 8.0, "pedalling 90 RPM stays under 29 km/h (0.3.0 slower bike)")
 	_check(game.distance > 200.0, "bot rides > 200 m in 45 s")
 	_check(game.crashes <= 3, "bot can balance (<= 3 crashes in 45 s)")
 

@@ -42,11 +42,15 @@ var down_time := 0.0
 var crash_s := 0.0
 var crash_lat := 0.0
 var new_record := false
+## Seconds spent scraping a guard rail (drains when you get off it).
+var rail_time := 0.0
 
 var _countdown := 0.0
 var _last_shown_count := -1
 var _slowmo_end_ms := 0
 var _prev_bike_state: Bike.State = Bike.State.FOOT_DOWN
+var _rail_spark_t := 0.0
+var _on_rail := false
 
 
 func _ready() -> void:
@@ -100,6 +104,7 @@ func _start_run() -> void:
 	crashes = 0
 	best_streak = 0.0
 	new_record = false
+	rail_time = 0.0
 	road.update_around(s0)
 	cam.snap()
 	_countdown = 0.0 if skip_countdown else road_tuning.countdown_s
@@ -129,6 +134,9 @@ func _unhandled_input(event: InputEvent) -> void:
 func _physics_process(dt: float) -> void:
 	var steer := RiderInput.steer
 	var cadence := RiderInput.cadence_rpm
+	bike.has_road = true
+	bike.road_yaw = road.path.yaw_at(bike_s)
+	bike.road_curvature = road.curvature_at(bike_s)
 	match phase:
 		Phase.COUNTDOWN:
 			bike.step(dt, steer, 0.0)
@@ -144,7 +152,7 @@ func _physics_process(dt: float) -> void:
 			bike.step(dt, steer, cadence)
 			elapsed += dt
 			_track()
-			_check_collisions()
+			_check_collisions(dt)
 		Phase.FALLEN:
 			bike.step(dt, steer, cadence)
 			elapsed += dt if mode == GameSession.Mode.COURSE else 0.0
@@ -200,17 +208,10 @@ func _track() -> void:
 		best_streak = maxf(best_streak, bike_s - streak_start_s)
 
 
-func _check_collisions() -> void:
+func _check_collisions(dt: float) -> void:
 	if not bike.is_upright():
 		return
-	var limit := road.rail_offset() - bike_tuning.collision_half_width_m
-	if absf(bike_lat) > limit:
-		var side := signf(bike_lat)
-		bike.position = road.path.point_at(bike_s, side * limit)
-		var yaw := road.path.yaw_at(bike_s)
-		var road_right := Vector3(cos(yaw), 0.0, -sin(yaw))
-		CrashFx.burst(self, bike.position + road_right * side * 0.3 + Vector3.UP * 0.6, "spark", 40, 6.0, 0.04, 0.6, true)
-		bike.crash("hit the rail", -side, -road_right * side)
+	if _check_rail(dt):
 		return
 	var o := road.check_hit(bike_s, bike_lat, bike_tuning.collision_half_length_m, bike_tuning.collision_half_width_m)
 	if o != null:
@@ -235,6 +236,38 @@ func _check_collisions() -> void:
 			hud.message("POTHOLE!", "", 0.8)
 	if mode == GameSession.Mode.COURSE and road.finish_s > 0.0 and bike_s >= road.finish_s:
 		_finish()
+
+
+## Forgiving guard rails: touching one scrapes along it (slower, turned away,
+## sparks) and only crashes you after rail_grace_s on the rail. Returns true if
+## the bike crashed.
+func _check_rail(dt: float) -> bool:
+	var rt := road_tuning
+	var limit := road.rail_offset() - bike_tuning.collision_half_width_m
+	var was_on := _on_rail
+	_on_rail = absf(bike_lat) >= limit
+	if not _on_rail:
+		rail_time = maxf(0.0, rail_time - dt * rt.rail_recover_rate)
+		return false
+	var side := signf(bike_lat)
+	var yaw := road.path.yaw_at(bike_s)
+	var road_right := Vector3(cos(yaw), 0.0, -sin(yaw))
+	bike.position = road.path.point_at(bike_s, side * limit)
+	bike_lat = side * limit
+	rail_time += dt
+	if rail_time >= rt.rail_grace_s:
+		CrashFx.burst(self, bike.position + road_right * side * 0.3 + Vector3.UP * 0.6, "spark", 40, 6.0, 0.04, 0.6, true)
+		bike.crash("scraped the rail too long", -side, -road_right * side)
+		return true
+	bike.scrape_rail(dt, side, yaw, rt.rail_scrape_decel, rt.rail_away_deg, rt.rail_turn_deg_s, rt.rail_lean_calm)
+	_rail_spark_t -= dt
+	if _rail_spark_t <= 0.0 or not was_on:
+		_rail_spark_t = 0.12
+		CrashFx.burst(self, bike.position + road_right * side * 0.3 + Vector3.UP * 0.5, "spark", 8 if was_on else 20, 4.0, 0.03, 0.35, true)
+		cam.add_trauma(0.08 if was_on else 0.25)
+	var left := maxf(0.0, rt.rail_grace_s - rail_time)
+	hud.message("RAIL!", "Steer %s - %.1f s" % ["LEFT" if side > 0.0 else "RIGHT", left], 0.3)
+	return false
 
 
 func _on_bike_crashed(reason: String) -> void:

@@ -6,11 +6,12 @@
 class_name CourseData
 extends RefCounted
 
+## 0.3.0: longer straight warm-up (140 -> 300 m) and gentler first two curves.
 const SEGMENTS := [
-	["S", 140.0],
-	["R", 90.0, 120.0],
+	["S", 300.0],
+	["R", 90.0, 180.0],
 	["S", 100.0],
-	["L", 120.0, 90.0],
+	["L", 120.0, 130.0],
 	["S", 60.0],
 	["R", 80.0, 70.0],
 	["L", 80.0, 70.0],
@@ -25,30 +26,31 @@ const SEGMENTS := [
 ]
 
 const OBSTACLES := [
-	[180.0, 1, "cones"],
-	[240.0, 0, "barrier"],
-	[300.0, 1, "pothole", 0.0],
-	[330.0, 0, "car"],
-	[420.0, 1, "cones"],
-	[470.0, 0, "cones"],
-	[560.0, 1, "car"],
-	[600.0, 0, "pothole", 0.3],
-	[640.0, 1, "barrier"],
-	[700.0, 0, "car"],
-	[760.0, 1, "cones"],
-	[820.0, 0, "barrier"],
-	[830.0, 1, "pothole", -0.2],
-	[900.0, 1, "car"],
-	[980.0, 0, "cones"],
-	[1040.0, 1, "barrier"],
-	[1100.0, 0, "car"],
-	[1160.0, 1, "pothole", 0.0],
-	[1200.0, 1, "cones"],
-	[1280.0, 0, "barrier"],
-	[1340.0, 1, "car"],
-	[1420.0, 0, "cones"],
-	[1480.0, 1, "barrier"],
-	[1540.0, 0, "car"],
+	[220.0, 0, "cones"],  # warm-up: in the other lane, no need to swerve
+	[340.0, 1, "cones"],
+	[400.0, 0, "barrier"],
+	[460.0, 1, "pothole", 0.0],
+	[490.0, 0, "car"],
+	[580.0, 1, "cones"],
+	[630.0, 0, "cones"],
+	[720.0, 1, "car"],
+	[760.0, 0, "pothole", 0.3],
+	[800.0, 1, "barrier"],
+	[860.0, 0, "car"],
+	[920.0, 1, "cones"],
+	[980.0, 0, "barrier"],
+	[990.0, 1, "pothole", -0.2],
+	[1060.0, 1, "car"],
+	[1140.0, 0, "cones"],
+	[1200.0, 1, "barrier"],
+	[1260.0, 0, "car"],
+	[1320.0, 1, "pothole", 0.0],
+	[1360.0, 1, "cones"],
+	[1440.0, 0, "barrier"],
+	[1500.0, 1, "car"],
+	[1580.0, 0, "cones"],
+	[1640.0, 1, "barrier"],
+	[1700.0, 0, "car"],
 ]
 
 const RUNOFF_M := 150.0

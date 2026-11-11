@@ -1,10 +1,10 @@
 # Handoff: Theremin Rider
 
-**Last updated:** 2026-11-11 · **Version:** 0.5.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
+**Last updated:** 2026-11-11 · **Version:** 0.6.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
 
 ## 1. What this is
 
-A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. Player 2 pedals a stationary bike, and their cadence is the bike's speed. Both go Max → OSC/UDP → Godot. There's a controller/keyboard version for playtesting. A 2-lane road with rails and obstacles; crash → both players cooperate to get back up. Modes: **Endless** and **Course**. Cameras: 1st and 3rd person.
+A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. Player 2 pedals a stationary bike, and their cadence is the bike's speed. Both go Max → OSC/UDP → Godot. There's a controller/keyboard version for playtesting. A 2-lane road with rails and obstacles; crash → back up automatically after 1.5 s (or at once by pedalling); R / Back restarts the ride. Modes: **Endless** and **Course**. Cameras: 1st and 3rd person.
 
 ## 2. State right now
 
@@ -16,6 +16,7 @@ A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. 
 | Balance feel | 0.3.0: steadier than 0.1.0 (`lean_assist`, more damping). 0.2.1: back to the 0.1.0 balance (self-balancing at speed, balance by steering when slow) because 0.2.0 was far too hard (KI-19). Stop-pedalling still falls in ~4 s. Next: small tuning steps from here with the user. |
 | First-person view (0.4.0) | True first person: your arms, gloved hands and the handlebar are in view and turn with the steering. Model + camera are edited in `scenes/bike/bike_model.tscn` (TUNING.md). Checked in a screenshot, not played. |
 | Controller / keyboard play | Done. Not yet played by a human. |
+| Minimal HUD + quick restart (0.6.0) | HUD shows only the profile name (+ a warning when its device is silent), km/h top-right, a speedometer dial bottom-left (`hud_speedometer.gd`), steering bar + lean dial bottom centre, and centre messages. Get-up is automatic (`auto_get_up_s` 1.5 s) or instant by pedalling; the old co-op hold (pedal + centred steering for 2 s) is gone. R / Back restarts the ride from the start with a 1 s countdown, also from the pause menu and the results. Checked in screenshots, not played. |
 | Control profiles (0.5.0) | Three saved profiles replace Auto / Controller only / OSC only: **Controller / keyboard**, **Theremin + bike pedals**, **Theremin + controller / keyboard pedal**. Main menu button or F2. `GameSession.input_profile` stores it; `RiderInput` routes by it. Smoke-tested; menu not looked at on screen. |
 | OSC receive in Godot | Done; tested with `tools/osc_test_sender.py` |
 | Max patch (theremin → steer) | **Now the user's own Max-saved patch** (0.4.2). Steering: pitch → `ftom` → `zmap 60. 80. -1. 1.`. Don't run `tools/make_maxpat.py` over it. |
@@ -56,7 +57,7 @@ Autoloads:  GameSession (mode, assist, camera pref, control profile, best scores
 | `scripts/world/` | `road_path.gd` (centre line, `locate()` → s/lateral), `road_world.gd`, `obstacle.gd`, `course_data.gd`, `road_tuning.gd` |
 | `scripts/game/game.gd` | Phases COUNTDOWN → PLAY → FALLEN → (get up) → PLAY / FINISHED. Collisions, scoring, HUD feed, crash effects + slow motion |
 | `scripts/game/crash_fx.gd` | Particle bursts (sparks, dust, debris) and the `Tumbler` that knocks obstacle pieces flying |
-| `scripts/ui/` | HUD, gauges, menus, input check, `ui_kit.gd` |
+| `scripts/ui/` | HUD, gauges (steering bar, lean dial, get-up ring), speedometer, menus, input check, `ui_kit.gd` |
 | `scripts/core/` | `palette.gd` (all colours), `mesh_kit.gd` (primitive builders) |
 | `data/*.tres` | Tuning resources (all gameplay numbers) |
 | `max/` | Max patch |

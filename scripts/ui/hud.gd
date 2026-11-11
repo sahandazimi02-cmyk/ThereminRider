@@ -1,16 +1,18 @@
-## In-game HUD. The game pushes values in each frame via the public vars/methods.
+## In-game HUD. Kept minimal on purpose: control profile (top-left), speed
+## (top-right), speedometer (bottom-left), steering bar + lean dial (bottom
+## centre), and the big centre messages. F1 shows the debug readout.
+## The game pushes values in each frame via the public vars/methods.
 class_name Hud
 extends CanvasLayer
 
 var gauges: HudGauges
-var score_label: Label
+var speedometer: HudSpeedometer
+var profile_label: Label
+var warn_label: Label
 var speed_label: Label
-var cadence_label: Label
-var input_label: Label
 var center_label: Label
 var sub_label: Label
 var debug_label: Label
-var help_label: Label
 
 var _flash_t := 0.0
 var _flash_rect: ColorRect
@@ -31,9 +33,14 @@ func _ready() -> void:
 	_flash_rect.color = Color(0, 0, 0, 0)
 	root.add_child(_flash_rect)
 
-	score_label = UiKit.label("", 26)
-	score_label.position = Vector2(24, 18)
-	root.add_child(score_label)
+	profile_label = UiKit.label("", 22)
+	profile_label.position = Vector2(24, 18)
+	root.add_child(profile_label)
+
+	warn_label = UiKit.label("", 20)
+	warn_label.add_theme_color_override("font_color", Palette.color("hud_warn"))
+	warn_label.position = Vector2(24, 50)
+	root.add_child(warn_label)
 
 	speed_label = UiKit.label("0", 56, HORIZONTAL_ALIGNMENT_RIGHT)
 	speed_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
@@ -42,27 +49,13 @@ func _ready() -> void:
 	speed_label.offset_top = 10
 	root.add_child(speed_label)
 
-	cadence_label = UiKit.label("", 24, HORIZONTAL_ALIGNMENT_RIGHT)
-	cadence_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	cadence_label.offset_left = -460
-	cadence_label.offset_right = -24
-	cadence_label.offset_top = 84
-	root.add_child(cadence_label)
-
-	input_label = UiKit.label("", 18)
-	input_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
-	input_label.offset_top = -120
-	input_label.offset_left = 24
-	input_label.offset_right = 600
-	root.add_child(input_label)
-
-	help_label = UiKit.label("", 16, HORIZONTAL_ALIGNMENT_RIGHT)
-	help_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	help_label.offset_top = -96
-	help_label.offset_left = -560
-	help_label.offset_right = -24
-	help_label.text = "C / Y: camera     Esc / Start: pause\nF2: controls     F1: debug     R: quick reset"
-	root.add_child(help_label)
+	speedometer = HudSpeedometer.new()
+	speedometer.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	speedometer.offset_left = 24
+	speedometer.offset_right = 24 + 250
+	speedometer.offset_top = -24 - 250
+	speedometer.offset_bottom = -24
+	root.add_child(speedometer)
 
 	center_label = UiKit.label("", 64, HORIZONTAL_ALIGNMENT_CENTER)
 	center_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
@@ -122,6 +115,12 @@ func slam(text: String, sub: String = "") -> void:
 	center_label.scale = Vector2.ONE * 1.8
 	var tw := create_tween()
 	tw.tween_property(center_label, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## Top-left text: the control profile, plus a warning line when its device is silent.
+func set_profile(profile_name: String, warning: String) -> void:
+	profile_label.text = profile_name
+	warn_label.text = warning
 
 
 func clear_message() -> void:

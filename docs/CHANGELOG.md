@@ -2,6 +2,24 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.6.0: 2026-11-11, minimal HUD, speedometer, quick get-up and restart
+
+### Changed
+- **HUD stripped down.** While riding you only see: the control profile name (top-left; a yellow warning line appears under it only when the profile's device is silent, e.g. *no theremin signal*), km/h (top-right), the steering bar + lean dial (bottom centre, unchanged), and centre messages. Removed: distance / streak / crashes, pedal RPM, the Steer/Pedal/Assist/Camera block and the key-hint text. F1 debug readout still there.
+- **Getting up after a crash is automatic.** Back up 1.5 s after the bike lies down (`road.auto_get_up_s`), or immediately once anyone pedals ≥ 10 RPM after 0.4 s (`reset_min_cadence_rpm`, `min_down_s`). The ring now shows the auto get-up timer. The co-op hold (pedal + centred steering for 2 s) and its tunables `reset_hold_s`, `reset_center_tolerance`, `reset_decay_rate` are removed; the steering hand is no longer needed to get up.
+- **R / Back restarts the ride** (was a debug "reset in place"; action renamed `debug_reset` → `restart_run`). Works while riding, while down, in the pause menu and on the Course results. Restarts use `road.restart_countdown_s` (1 s); the first ride keeps `countdown_s` (3 s). The pause menu's Restart / Ride again use the same path (`Game.restart()`, which saves scores and closes the menu).
+
+### Added
+- **Speedometer dial** bottom-left (`scripts/ui/hud_speedometer.gd`): 240° dial, range = `max_speed_kmh` rounded up to 10, ticks every 5 km/h, numbers every 10, needle, number + km/h.
+- Smoke test: auto get-up with no input; restart returns to the start line with distance/crashes reset; restart countdown is real and shorter than the first one.
+
+### Fixed
+- `tools/screenshots.gd`: the "crash" shots never showed a crash (the forgiving rails just scrape for the whole 10 s window). It now forces the hit if the rail didn't, and turns auto get-up off for the two crash shots.
+
+### Verified
+- Headless import exit 0, no errors. Smoke test: all new checks pass (auto get-up 1.9 s after the crash incl. the fall; restart countdown 1.0 s vs 3.0 s). Exit 1 only for the same two speed checks as before (local `bike_tuning.tres` edits, 60 km/h).
+- Looked at `third_person.png`, `first_person.png`, `crash_impact.png`, `crash_landed.png`: profile text top-left, km/h top-right, speedometer bottom-left, steering bar/lean dial bottom centre, nothing else. Not played by a human; R / Back not pressed on a real keyboard/pad.
+
 ## 0.5.0: 2026-11-11, control profiles
 
 ### Added

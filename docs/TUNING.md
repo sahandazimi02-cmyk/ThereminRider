@@ -68,7 +68,8 @@ The bike is simulated directly rather than with Godot's physics engine; that's s
 | Too fast / slow overall | `bike.speed_per_rpm`, `bike.max_speed_kmh` (top speed), `road.speed_fov_boost_deg` (sense of speed) |
 | Crashes too much / not enough drama | "Crash effects" group (`bike_tuning`), "Crash camera" group (`road_tuning`); `slowmo_s` 0 turns slow motion off |
 | Pedaller has to tap/pedal too fast | `bike.speed_per_rpm` ↑ |
-| Get-up too fiddly | `road.reset_center_tolerance` ↑, `road.reset_min_cadence_rpm` ↓, `road.reset_hold_s` ↓ |
+| Get-up too slow / too quick | `road.auto_get_up_s` (1.5 s; 0 = only pedalling gets you up), `road.min_down_s` (0.4 s before pedalling counts), `road.reset_min_cadence_rpm` (10) |
+| Restart countdown | `road.restart_countdown_s` (1 s after R / Back / Restart), `road.countdown_s` (3 s, first ride only) |
 | Road too narrow / rails too close | `road.lane_width_m`, `road.rail_gap_m` |
 | Endless too hard too soon | `road.endless_intro_m` ↑ (straight warm-up), `road.difficulty_ramp_m` ↑, `road.difficulty_curve` ↑, `road.obstacle_gap_hard_m` ↑ |
 | Course start too hard | `CourseData.SEGMENTS` / `OBSTACLES` in `course_data.gd` (plain data) |

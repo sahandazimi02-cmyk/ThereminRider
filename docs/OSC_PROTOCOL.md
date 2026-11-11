@@ -19,7 +19,7 @@ You can rename all four addresses in `data/input_tuning.tres`.
   - *Theremin + bike pedals*: steering from `/bike/steer`, pedalling from `/bike/cadence` (or `/bike/pedal` if no cadence is live).
   - *Theremin + controller / keyboard pedal*: steering from `/bike/steer`; Max's pedal data is ignored, so SEND PEDAL DATA can stay on.
   - There is no automatic fallback (the old *Auto* mode is gone, 0.5.0). A channel the profile takes from OSC reads NONE while it isn't live.
-- **Hand absent** (`/bike/steer/present 0`): steering eases back to straight (`steer_absent_return_s`), and the HUD shows *THEREMIN - hand not detected!* The co-op get-up also needs the hand present.
+- **Hand absent** (`/bike/steer/present 0`): steering eases back to straight (`steer_absent_return_s`), and the HUD shows *theremin hand not detected* under the profile name. (Since 0.6.0 getting up after a crash no longer needs the hand.)
 - **Steering processing in Godot**, in `input_tuning.tres`: `osc_steer_invert`, `osc_steer_gain`, `osc_steer_deadzone` (re-scaled so it stays continuous), and `osc_steer_smoothing_s`.
 - **Pedal strokes:** 2 strokes = 1 crank revolution (`strokes_per_rev`). The last 4 intervals are averaged, and cadence drops to 0 after `stroke_timeout_s` (1.2 s) without a stroke.
 

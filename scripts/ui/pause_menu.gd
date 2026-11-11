@@ -68,7 +68,13 @@ func _enable_results() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _root.visible and not _results and event.is_action_pressed("pause", false):
+	if not _root.visible:
+		return
+	if event.is_action_pressed("restart_run", false):
+		# The game doesn't get input while paused, so R / Back restarts from here.
+		get_viewport().set_input_as_handled()
+		game.restart()
+	elif not _results and event.is_action_pressed("pause", false):
 		get_viewport().set_input_as_handled()
 		_on_resume()
 
@@ -78,12 +84,17 @@ func _on_resume() -> void:
 	get_tree().paused = false
 
 
-func _on_restart() -> void:
+## Hides the menu / results without doing anything else (Game.restart calls this).
+func close() -> void:
 	_root.visible = false
 	_results = false
 	_buttons[1].text = "Restart"
+	for b in _buttons:
+		b.disabled = false
 	get_tree().paused = false
-	game.save_scores()
+
+
+func _on_restart() -> void:
 	game.restart()
 
 

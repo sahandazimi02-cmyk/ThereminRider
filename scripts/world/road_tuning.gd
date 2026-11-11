@@ -71,21 +71,22 @@ const PATH := "res://data/road_tuning.tres"
 @export_range(0.0, 10.0, 0.1) var weight_pothole: float = 1.5
 
 @export_group("Crash & reset")
-## Time on the ground before the get-up prompt starts counting.
-@export_range(0.0, 5.0, 0.1) var min_down_s: float = 1.0
-## Both players must hold their part this long to get back up.
-@export_range(0.3, 6.0, 0.1) var reset_hold_s: float = 2.0
-## Pedal player: at least this cadence.
-@export_range(5.0, 120.0, 1.0) var reset_min_cadence_rpm: float = 30.0
-## Steering player: within this much of centre.
-@export_range(0.02, 0.6, 0.01) var reset_center_tolerance: float = 0.2
-## Progress drains this many times faster than it fills when you let go.
-@export_range(0.0, 4.0, 0.05) var reset_decay_rate: float = 1.0
+## After a crash, the bike must lie still this long before pedalling can get
+## you up (so the crash is readable).
+@export_range(0.0, 5.0, 0.05) var min_down_s: float = 0.4
+## Back up automatically after lying down this long, no input needed.
+## 0 = only pedalling gets you up.
+@export_range(0.0, 10.0, 0.1) var auto_get_up_s: float = 1.5
+## Pedalling at least this cadence (after min_down_s) gets you up at once.
+@export_range(1.0, 120.0, 1.0) var reset_min_cadence_rpm: float = 10.0
 ## Respawn this far behind the crash.
 @export_range(0.0, 50.0, 1.0) var respawn_back_m: float = 6.0
 ## Keep the respawn spot this far from obstacles in that lane.
 @export_range(2.0, 40.0, 1.0) var respawn_clearance_m: float = 12.0
+## Countdown at the very start of a ride.
 @export_range(0.0, 10.0, 0.5) var countdown_s: float = 3.0
+## Countdown after Restart (R / Back, pause menu, Ride again).
+@export_range(0.0, 10.0, 0.5) var restart_countdown_s: float = 1.0
 
 @export_group("Cameras")
 @export_range(2.0, 12.0, 0.1) var chase_distance_m: float = 4.6

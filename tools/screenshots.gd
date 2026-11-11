@@ -22,12 +22,17 @@ func _run() -> void:
 
 	# Hard hit: steer into the rail, catch the rider mid-air, then on the ground.
 	game.cam.first_person = false
+	var auto_get_up := game.road_tuning.auto_get_up_s
+	game.road_tuning.auto_get_up_s = 0.0  # stay down long enough to photograph
 	for _f in 60 * 10:
 		if game.phase == Game.Phase.FALLEN:
 			break
 		RiderInput.override_steer = 0.6
 		RiderInput.override_cadence = 90.0
 		await get_tree().physics_frame
+	if game.phase != Game.Phase.FALLEN:
+		# Forgiving rails can scrape for ages; force the hit so the shot shows a crash.
+		game.bike.crash("hit the rail", 1.0, game.bike.right())
 	for _f in 14:
 		await get_tree().physics_frame
 	await _shot("crash_impact")
@@ -37,6 +42,7 @@ func _run() -> void:
 		await get_tree().physics_frame
 	print("    rider %.1f m from the bike" % (game.bike.model.rider_focus() - game.bike.global_position).length())
 	await _shot("crash_landed")
+	game.road_tuning.auto_get_up_s = auto_get_up
 	for _f in 80:
 		RiderInput.override_steer = 0.0
 		RiderInput.override_cadence = 60.0

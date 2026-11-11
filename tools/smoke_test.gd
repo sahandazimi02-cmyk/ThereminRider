@@ -205,6 +205,9 @@ func _test_crash_fx() -> void:
 	var model := game.bike.model
 	var start := model.rider_focus()
 	print("    before hit: %s, %.1f km/h, rider hip %.2f m up, crashes so far %d" % [game.bike.state_name(), game.bike.speed * 3.6, start.y - game.bike.global_position.y, game.crashes])
+	# Watch the whole tumble: no automatic get-up during this check.
+	var auto_get_up := game.road_tuning.auto_get_up_s
+	game.road_tuning.auto_get_up_s = 0.0
 	game.bike.crash("test hit", 1.0, game.bike.right())
 	_check(model.thrown and game.bike.impact, "hard hit throws the rider off")
 	var peak := start.y
@@ -225,6 +228,7 @@ func _test_crash_fx() -> void:
 	if cones != null:
 		game.road.knock(cones, Vector3(0, 0, -8))
 		_check(game.road.is_clear(cones.s, cones.lateral, 1.0) and game.road.check_hit(cones.s, cones.lateral, 0.5, 0.3) == null, "knocked cones no longer block the road")
+	game.road_tuning.auto_get_up_s = auto_get_up
 	for _f in 60 * 6:
 		RiderInput.override_steer = 0.0
 		RiderInput.override_cadence = 60.0
@@ -232,6 +236,34 @@ func _test_crash_fx() -> void:
 		if game.phase == Game.Phase.PLAY:
 			break
 	_check(game.phase == Game.Phase.PLAY and not model.thrown, "get-up puts the rider back on the bike")
+
+	# No input at all: still back up automatically, quickly.
+	game.bike.crash("test fall", 1.0, Vector3.ZERO)
+	var waited := 0.0
+	for _f in 60 * 8:
+		RiderInput.override_steer = 0.0
+		RiderInput.override_cadence = 0.0
+		await get_tree().physics_frame
+		waited += 1.0 / 60.0
+		if game.phase == Game.Phase.PLAY:
+			break
+	_check(game.phase == Game.Phase.PLAY, "auto get-up with no input (%.1f s after the crash)" % waited)
+
+	# Restart (R / Back / pause menu): straight back to the start, short countdown.
+	for _f in 60 * 3:
+		_bot(game, 90.0)
+		await get_tree().physics_frame
+	game.skip_countdown = false  # tests normally skip it; measure the real one here
+	game.restart()
+	var t := game.road_tuning
+	_check(game.phase == Game.Phase.COUNTDOWN and is_equal_approx(game.bike_s, game.road.start_s()) \
+			and game.distance == 0.0 and game.crashes == 0, "restart puts the bike back on the start line")
+	var to_go := 0.0
+	while game.phase == Game.Phase.COUNTDOWN and to_go < 10.0:
+		await get_tree().physics_frame
+		to_go += 1.0 / 60.0
+	_check(to_go > 0.0 and to_go <= t.restart_countdown_s + 0.1 and t.restart_countdown_s < t.countdown_s,
+			"restart countdown is short (%.1f s, first start %.1f s)" % [to_go, t.countdown_s])
 	game.queue_free()
 	await get_tree().process_frame
 

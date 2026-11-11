@@ -153,7 +153,7 @@ func _ensure_actions() -> void:
 	_action("pedal", 0.5, [_key(KEY_SPACE), _key(KEY_W), _key(KEY_UP), _button(JOY_BUTTON_A)])
 	_action("toggle_camera", 0.5, [_key(KEY_C), _button(JOY_BUTTON_Y)])
 	_action("pause", 0.5, [_key(KEY_ESCAPE), _button(JOY_BUTTON_START)])
-	_action("debug_reset", 0.5, [_key(KEY_R), _button(JOY_BUTTON_BACK)])
+	_action("restart_run", 0.5, [_key(KEY_R), _button(JOY_BUTTON_BACK)])
 	_action("toggle_debug", 0.5, [_key(KEY_F1)])
 	_action("cycle_input_mode", 0.5, [_key(KEY_F2)])
 

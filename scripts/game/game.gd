@@ -91,7 +91,7 @@ func _ready() -> void:
 	_start_run()
 
 
-func _start_run() -> void:
+func _start_run(countdown_s: float = -1.0) -> void:
 	_end_slowmo()
 	road.reset_obstacles()
 	var s0 := road.start_s()
@@ -107,14 +107,19 @@ func _start_run() -> void:
 	rail_time = 0.0
 	road.update_around(s0)
 	cam.snap()
-	_countdown = 0.0 if skip_countdown else road_tuning.countdown_s
+	if countdown_s < 0.0:
+		countdown_s = road_tuning.countdown_s
+	_countdown = 0.0 if skip_countdown else countdown_s
 	phase = Phase.COUNTDOWN
 	_last_shown_count = -1
 	hud.clear_message()
 
 
+## Back to the start line right away, with the short restart countdown.
 func restart() -> void:
-	_start_run()
+	save_scores()
+	pause_menu.close()
+	_start_run(road_tuning.restart_countdown_s)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -126,9 +131,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		pause_menu.open()
 	elif event.is_action_pressed("toggle_debug", false):
 		hud.toggle_debug()
-	elif event.is_action_pressed("debug_reset", false):
-		if phase == Phase.PLAY or phase == Phase.FALLEN:
-			_respawn(bike_s if bike.is_upright() else crash_s)
+	elif event.is_action_pressed("restart_run", false):
+		restart()
 
 
 func _physics_process(dt: float) -> void:
@@ -296,18 +300,11 @@ func _update_get_up(dt: float) -> void:
 	if bike.state != Bike.State.DOWN:
 		return
 	down_time += dt
-	if down_time < road_tuning.min_down_s:
-		return
-	var pedal_ok := RiderInput.cadence_rpm >= road_tuning.reset_min_cadence_rpm
-	var steer_ok := absf(RiderInput.steer) <= road_tuning.reset_center_tolerance and RiderInput.hand_present
-	if pedal_ok and steer_ok:
-		reset_progress += dt / road_tuning.reset_hold_s
-	else:
-		reset_progress = maxf(0.0, reset_progress - dt * road_tuning.reset_decay_rate / road_tuning.reset_hold_s)
-	var pedal_txt := "PEDAL  [OK]" if pedal_ok else "PEDAL  (keep pedalling)"
-	var steer_txt := "STEER CENTRED  [OK]" if steer_ok else "STEER  (hold the middle)"
-	hud.message("GET BACK UP", "%s      %s" % [pedal_txt, steer_txt])
-	if reset_progress >= 1.0:
+	var auto_s := road_tuning.auto_get_up_s
+	reset_progress = clampf(down_time / auto_s, 0.0, 1.0) if auto_s > 0.0 else 0.0
+	var pedalled := down_time >= road_tuning.min_down_s \
+			and RiderInput.cadence_rpm >= road_tuning.reset_min_cadence_rpm
+	if pedalled or (auto_s > 0.0 and down_time >= auto_s):
 		_respawn(crash_s)
 
 
@@ -337,6 +334,18 @@ func _respawn(at_s: float) -> void:
 	hud.message("GO!", "", 0.8)
 
 
+## Short warning when the profile's device isn't sending, else "".
+func _input_warning() -> String:
+	var missing: Array[String] = []
+	if RiderInput.steer_source == RiderInput.Source.NONE:
+		missing.append("no theremin signal")
+	elif RiderInput.steer_source == RiderInput.Source.OSC and not RiderInput.hand_present:
+		missing.append("theremin hand not detected")
+	if RiderInput.pedal_source == RiderInput.Source.NONE:
+		missing.append("no bike pedal signal")
+	return ", ".join(missing)
+
+
 func _finish() -> void:
 	phase = Phase.FINISHED
 	new_record = GameSession.submit_course(elapsed) if record_scores else false
@@ -361,24 +370,9 @@ func _update_ground() -> void:
 func _update_hud() -> void:
 	var kmh := bike.speed * MPS_TO_KMH
 	hud.speed_label.text = "%d km/h" % int(round(kmh))
-	hud.cadence_label.text = "Pedal %d RPM" % int(round(RiderInput.cadence_rpm))
-	if mode == GameSession.Mode.ENDLESS:
-		hud.score_label.text = "ENDLESS   %d m\nStreak %d m   Best streak %d m\nCrashes %d" % [
-				int(distance), int(maxf(0.0, bike_s - streak_start_s)) if bike.is_upright() else 0,
-				int(maxf(best_streak, GameSession.best_endless_m)), crashes]
-	else:
-		var remaining := maxf(0.0, road.finish_s - bike_s)
-		hud.score_label.text = "COURSE   %s\n%d m to finish\nCrashes %d" % [UiKit.format_time(elapsed), int(remaining), crashes]
-
-	var steer_src := RiderInput.source_name(RiderInput.steer_source)
-	var pedal_src := RiderInput.source_name(RiderInput.pedal_source)
-	var steer_state := "THEREMIN" if steer_src == "OSC" else ("CONTROLLER (left stick)" if steer_src == "PAD" else "NO SIGNAL")
-	if steer_src == "OSC" and not RiderInput.hand_present:
-		steer_state = "THEREMIN - hand not detected!"
-	var pedal_state := "BIKE (OSC)" if pedal_src == "OSC" else ("CONTROLLER (tap A / Space)" if pedal_src == "PAD" else "NO SIGNAL")
-	hud.input_label.text = "Steer: %s\nPedal: %s\nControls: %s (F2)    Camera: %s (C / Y)\nAssist: %s" % [
-			steer_state, pedal_state, RiderInput.profile_name(),
-			"1st person" if cam.first_person else "3rd person", GameSession.assist_name()]
+	hud.speedometer.speed_kmh = kmh
+	hud.speedometer.max_kmh = bike_tuning.max_speed_kmh
+	hud.set_profile(RiderInput.profile_name(), _input_warning())
 
 	var g := hud.gauges
 	g.steer = RiderInput.steer

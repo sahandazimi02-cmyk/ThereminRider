@@ -69,6 +69,9 @@ var _slide_dir := Vector3.FORWARD
 var _spin := 0.0
 var _hop_y := 0.0
 var _hop_v := 0.0
+# Seconds of pothole shakiness left (see hit_pothole) and its jitter clock.
+var _pothole_t := 0.0
+var _jitter_t := 0.0
 
 
 func _ready() -> void:
@@ -100,6 +103,7 @@ func respawn(pos: Vector3, heading: float) -> void:
 	_spin = 0.0
 	_hop_y = 0.0
 	_hop_v = 0.0
+	_pothole_t = 0.0
 	if model != null:
 		model.reset_rider()
 	_update_model()
@@ -190,6 +194,9 @@ func step(dt: float, steer_in: float, cadence_rpm: float) -> void:
 		State.DOWN:
 			pass
 
+	if _pothole_t > 0.0:
+		_pothole_t = maxf(0.0, _pothole_t - dt) if state == State.RIDING else 0.0
+		_jitter_t += dt
 	_wheel_spin = fmod(_wheel_spin + speed / t.wheel_radius_m * dt, TAU)
 	if is_upright():
 		_crank = fmod(_crank + cadence / 60.0 * TAU * dt, TAU)
@@ -200,9 +207,12 @@ func _step_balance(dt: float) -> void:
 	var t := tuning
 	var gs := t.gravity_scale * assist_scale.y
 	stability_k = (t.self_stability * smoothstep(t.wobble_speed, t.stable_speed, speed) + t.lean_assist) * assist_scale.x
+	var shaky := pothole_shake()
+	stability_k *= 1.0 - t.pothole_stability_loss * shaky
 	lean_eq = atan2(lat_accel, G)
 	var pend := gs * (G / t.com_height_m) * (sin(lean) - cos(lean) * lat_accel / G)
 	var wobble := (t.wobble_noise * (1.0 - smoothstep(0.0, t.wobble_speed, speed)) + t.speed_wobble) * _noise(dt)
+	wobble += t.pothole_jitter * shaky * _jitter()
 	var acc := pend - stability_k * (lean - lean_eq) - t.lean_damping * lean_rate + wobble
 	lean_rate += acc * dt
 	lean += lean_rate * dt
@@ -272,11 +282,31 @@ func scrape_rail(dt: float, side: float, rail_yaw: float, decel: float, away_deg
 	_update_model()
 
 
+## Riding over a pothole: a sideways kick, some speed lost, a jolt up, and
+## for pothole_shaky_s the bike balances itself less and jitters (fading out).
 func hit_pothole() -> void:
 	if state != State.RIDING:
 		return
-	lean_rate += _random_side() * tuning.pothole_kick
-	speed *= tuning.pothole_speed_keep
+	var t := tuning
+	lean_rate += _random_side() * t.pothole_kick
+	speed *= t.pothole_speed_keep
+	_pothole_t = t.pothole_shaky_s
+	_jitter_t = _rng.randf() * TAU
+	if t.pothole_hop > 0.0:
+		_hop_v = maxf(_hop_v, t.pothole_hop)
+		_hop_y = maxf(_hop_y, 0.001)
+
+
+## 0..1: how shaky the bike still is from the last pothole (1 = just hit).
+func pothole_shake() -> float:
+	if _pothole_t <= 0.0 or tuning.pothole_shaky_s <= 0.0:
+		return 0.0
+	return _pothole_t / tuning.pothole_shaky_s
+
+
+## Fast two-tone jitter (-1..1) for the post-pothole wobble.
+func _jitter() -> float:
+	return sin(9.0 * _jitter_t) * 0.6 + sin(15.0 * _jitter_t + 1.3) * 0.4
 
 
 func _start_fall(reason: String, side: float) -> void:
@@ -310,4 +340,5 @@ func _update_model() -> void:
 	rotation = Vector3(0.0, yaw, 0.0)
 	if model != null:
 		model.position.y = _hop_y
-		model.update_pose(lean, steer_angle, _wheel_spin, _crank)
+		var twitch := deg_to_rad(tuning.pothole_bar_twitch_deg) * pothole_shake() * sin(13.0 * _jitter_t)
+		model.update_pose(lean, steer_angle + twitch, _wheel_spin, _crank)

@@ -236,7 +236,7 @@ func _check_collisions(dt: float) -> void:
 			o.hit = true
 			bike.hit_pothole()
 			CrashFx.burst(self, bike.position + Vector3.UP * 0.1, "debris", 12, 2.5, 0.05, 0.7)
-			cam.add_trauma(0.35)
+			cam.add_trauma(bike_tuning.shake_pothole)
 			hud.message("POTHOLE!", "", 0.8)
 	if mode == GameSession.Mode.COURSE and road.finish_s > 0.0 and bike_s >= road.finish_s:
 		_finish()

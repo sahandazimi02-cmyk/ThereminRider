@@ -100,10 +100,29 @@ const PATH := "res://data/bike_tuning.tres"
 @export_range(0.5, 20.0, 0.1) var ground_friction: float = 7.0
 ## Speed kept when you smack a rail or obstacle.
 @export_range(0.0, 1.0, 0.01) var impact_speed_keep: float = 0.4
-## Lean-rate kick from riding over a pothole (rad/s).
-@export_range(0.0, 3.0, 0.01) var pothole_kick: float = 0.9
+
+@export_group("Potholes")
+## Lean-rate kick from riding over a pothole (rad/s), to a random side.
+## 0.7.0: 0.9 -> 1.1.
+@export_range(0.0, 3.0, 0.01) var pothole_kick: float = 1.1
 ## Speed kept after a pothole.
 @export_range(0.3, 1.0, 0.01) var pothole_speed_keep: float = 0.82
+## How long the bike stays shaky after a pothole (s). The effects below are
+## full right after the hit and fade to nothing over this time.
+@export_range(0.0, 4.0, 0.05) var pothole_shaky_s: float = 1.0
+## Share of the bike's self-balancing (stability k) lost right after a
+## pothole, so the lean comes back more slowly and wanders more. 0 = none,
+## 1 = no self-balancing at all for a moment.
+@export_range(0.0, 1.0, 0.01) var pothole_stability_loss: float = 0.5
+## Fast lean jitter right after a pothole (rad/s^2).
+@export_range(0.0, 10.0, 0.05) var pothole_jitter: float = 2.5
+## The bike jolts up this fast when it hits a pothole (m/s, visual + first-
+## person camera).
+@export_range(0.0, 3.0, 0.05) var pothole_hop: float = 0.9
+## Handlebar twitch after a pothole (deg, visual only: doesn't steer).
+@export_range(0.0, 20.0, 0.5) var pothole_bar_twitch_deg: float = 6.0
+## Camera shake from a pothole (0..1). 0.7.0: 0.35 -> 0.6.
+@export_range(0.0, 1.0, 0.01) var shake_pothole: float = 0.6
 
 @export_group("Crash effects (visual only)")
 ## Rider is thrown off with this share of the bike's speed on rail/obstacle hits.

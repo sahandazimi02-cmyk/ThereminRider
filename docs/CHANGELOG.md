@@ -2,6 +2,22 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.7.0: 2026-11-11, no more forced potholes, harsher potholes
+
+### Fixed
+- **Potholes no longer sit right next to an obstacle in the other lane.** At higher difficulty the endless generator put a pothole in the other lane within ±4 m of an obstacle, which blocked both lanes and forced you over the pothole. Now every hazard is placed with a spacing rule (`RoadWorld._place_spaced`): two hazards in **opposite lanes** always have at least `road.swap_gap_m` (18 m) of clear road between them (back of one to front of the next), so you can pass one and swap lanes straight away. Two hazards in the same lane need `road.same_lane_gap_m` (3 m), so they never overlap. A hazard that would be too close is pushed further down the road. The paired pothole is still there at high difficulty, but now it comes `swap_gap_m` + 0–6 m (`paired_pothole_spread_m`) *after* the obstacle: pass the obstacle, then swap back. Its odds moved from hard-coded numbers to `paired_pothole_from` (0.4) / `paired_pothole_chance` (0.35).
+- Course: the pothole at 990 m sat 10 m after the barrier at 980 m in the other lane; moved to 1010 m.
+
+### Changed
+- **Potholes are more punishing (still not a crash).** On top of the sideways kick (`pothole_kick` 0.9 → 1.1) and speed loss: camera shake 0.35 → 0.6 (`shake_pothole`, now a tunable), a small jolt up (`pothole_hop`), and for 1 s (`pothole_shaky_s`) the bike is shakier: half its self-balancing gone at first (`pothole_stability_loss` 0.5), a fast lean jitter (`pothole_jitter`) and a handlebar twitch (`pothole_bar_twitch_deg`, visual only). All fade out over that second. New "Potholes" group in `bike_tuning`.
+
+### Added
+- Smoke test `[hazard spacing]`: rides the endless generator to max difficulty (6.4 km) and checks every pair of hazards; checks the course too. `[pothole]`: k drops right after a hit, the bike stays up with no steering at cruise, the lean is noticeable, and the shakiness wears off.
+
+### Verified
+- Headless import exit 0, no script errors. Smoke test with the committed tuning: exit 0, all checks pass (tightest opposite-lane gap in endless 18.0 m, course 27.1 m, 39 close obstacle → pothole swaps still generated; pothole: k 10 → 5, peak lean 10.7°). With the local `bike_tuning.tres` edits (60 km/h) the only failures are the same two speed checks as in 0.6.0.
+- Not played by a human; no screenshots taken. The 18 m gap is a distance, so how much time it gives depends on speed (≈ 2.2 s at 30 km/h, ≈ 1.1 s at 60 km/h).
+
 ## 0.6.0: 2026-11-11, minimal HUD, speedometer, quick get-up and restart
 
 ### Changed

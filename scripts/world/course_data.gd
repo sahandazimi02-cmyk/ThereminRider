@@ -39,7 +39,7 @@ const OBSTACLES := [
 	[860.0, 0, "car"],
 	[920.0, 1, "cones"],
 	[980.0, 0, "barrier"],
-	[990.0, 1, "pothole", -0.2],
+	[1010.0, 1, "pothole", -0.2],  # 0.7.0: was 990, right next to the 980 barrier
 	[1060.0, 1, "car"],
 	[1140.0, 0, "cones"],
 	[1200.0, 1, "barrier"],

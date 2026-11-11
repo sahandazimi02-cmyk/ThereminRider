@@ -1,6 +1,6 @@
 # Handoff: Theremin Rider
 
-**Last updated:** 2026-11-11 · **Version:** 0.6.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
+**Last updated:** 2026-11-11 · **Version:** 0.7.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
 
 ## 1. What this is
 
@@ -18,6 +18,7 @@ A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. 
 | Controller / keyboard play | Done. Not yet played by a human. |
 | Minimal HUD + quick restart (0.6.0) | HUD shows only the profile name (+ a warning when its device is silent), km/h top-right, a speedometer dial bottom-left (`hud_speedometer.gd`), steering bar + lean dial bottom centre, and centre messages. Get-up is automatic (`auto_get_up_s` 1.5 s) or instant by pedalling; the old co-op hold (pedal + centred steering for 2 s) is gone. R / Back restarts the ride from the start with a 1 s countdown, also from the pause menu and the results. Checked in screenshots, not played. |
 | Control profiles (0.5.0) | Three saved profiles replace Auto / Controller only / OSC only: **Controller / keyboard**, **Theremin + bike pedals**, **Theremin + controller / keyboard pedal**. Main menu button or F2. `GameSession.input_profile` stores it; `RiderInput` routes by it. Smoke-tested; menu not looked at on screen. |
+| Hazard spacing + potholes (0.7.0) | Hazards in opposite lanes always leave `swap_gap_m` (18 m) of clear road, so no forced potholes; paired potholes now come after the obstacle. Potholes hit harder: more shake, a jolt, and 1 s of shakier balance. Smoke-tested, not played. |
 | OSC receive in Godot | Done; tested with `tools/osc_test_sender.py` |
 | Max patch (theremin → steer) | **Now the user's own Max-saved patch** (0.4.2). Steering: pitch → `ftom` → `zmap 60. 80. -1. 1.`. Don't run `tools/make_maxpat.py` over it. |
 | Stationary bike sensor | Arduino on COM7, 9600 baud, sends `p` per pedal turn (checked live). Max column 5 opens COM7 on load and feeds pulse in → RPM → `/bike/cadence` (0.4.2). Some extra/irregular pulses seen (KI-27). |
@@ -74,7 +75,7 @@ Key design decisions:
 1. **Open `max/ThereminRider.maxpat` in Max 9**, fix anything that doesn't load (KI-01), calibrate, and confirm with Input check.
 2. **First human playtest with the controller** (profile 1), then theremin + controller pedal (profile 3, no bike needed), then theremin + bike (profile 2). 0.3.0 tuned for the theremin (slower, steering assist, forgiving rails); if it now feels too easy or "on rails", turn down `heading_assist` / `road_follow` / `rail_grace_s` first (TUNING.md knobs table). The user wants to tune balance from the 0.1.0 feel in small steps (KI-19); don't jump to 0.2.0-style "always unstable" again. Tune with TUNING.md's "Knobs to reach for first" table and log the results in CHANGELOG.
 3. **Pedal test in Max:** open the patch, check the column 5 light flashes once per turn, turn on SEND PEDAL DATA, watch Latest RPM while pedalling steadily. If it jumps around, look at KI-27 (debounce on the Arduino, or ignore pulses < 300 ms in Max). Tune `speed_per_rpm` so a comfortable real cadence gives the speed you want (0.3.0 default: 90 RPM ≈ 24 km/h).
-4. Decide Hard assist after playtesting (KI-03).
+4. Decide Hard assist after playtesting (KI-03). While playtesting, check the pothole feel (`pothole_*`, `shake_pothole`) and whether 18 m (`swap_gap_m`) is enough room to swap lanes at your real speed (KI-32).
 5. Nice-to-haves: audio (wind/chain/crash), hills, more course tracks (`course_data.gd` is plain data), a proper art pass (replace the generated meshes in `scenes/bike/bike_model.tscn` with a GLB; keep the `update_pose` / `first_person_transform` API and the `FirstPersonCamera` node).
 6. First-person feel: the user may want to adjust the camera/model in `bike_model.tscn`. If the view feels too wobbly or too stiff, try `fp_roll_factor` (1 = locked to the head).
 

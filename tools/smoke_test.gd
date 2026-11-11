@@ -31,7 +31,9 @@ func _run() -> void:
 	await _test_profiles()
 	_test_cadence()
 	_test_road()
+	_test_spacing()
 	_test_fall_times()
+	_test_pothole()
 	await _test_crash_fx()
 	await _test_rail()
 	await _test_endless()
@@ -144,6 +146,90 @@ func _test_road() -> void:
 		drift = maxf(drift, absf(y - w.path.start_yaw))
 	_check(rad_to_deg(drift) <= t.max_heading_drift_deg + 1.0, "heading drift bounded (%.1f deg)" % rad_to_deg(drift))
 	w.queue_free()
+
+
+## 0.7.0: hazards in opposite lanes always leave swap_gap_m of clear road
+## between them (no forced potholes), at every difficulty and in the course.
+func _test_spacing() -> void:
+	print("[hazard spacing]")
+	var t := RoadTuning.load_default()
+	var w := RoadWorld.new()
+	w.setup(t, true, 4321)
+	add_child(w)
+	var worst_swap := INF
+	var worst_same := INF
+	var paired := 0
+	var seen := {}
+	var end_s := t.start_straight_m + t.endless_intro_m + t.difficulty_ramp_m + 2000.0
+	var s := 0.0
+	while s < end_s:
+		w.update_around(s)
+		for i in w.obstacles.size():
+			var a := w.obstacles[i]
+			for j in range(i + 1, w.obstacles.size()):
+				var b := w.obstacles[j]
+				var gap := RoadWorld.clear_gap(a, b)
+				if w.lane_of(a.lateral) != w.lane_of(b.lateral):
+					worst_swap = minf(worst_swap, gap)
+					var key := "%d:%d" % [a.get_instance_id(), b.get_instance_id()]
+					if not seen.has(key) and gap < t.swap_gap_m + t.paired_pothole_spread_m + 1.0 							and (a.kind == Obstacle.Kind.POTHOLE) != (b.kind == Obstacle.Kind.POTHOLE):
+						seen[key] = true
+						paired += 1
+				else:
+					worst_same = minf(worst_same, gap)
+		s += 40.0
+	print("    endless to %.0f m: tightest lane swap %.1f m, tightest same lane %.1f m, close obstacle/pothole swaps %d" % [end_s, worst_swap, worst_same, paired])
+	_check(worst_swap >= t.swap_gap_m - 0.01, "endless: opposite-lane hazards >= swap_gap_m apart (%.1f m)" % worst_swap)
+	_check(worst_same >= t.same_lane_gap_m - 0.01, "endless: same-lane hazards don't overlap (%.1f m)" % worst_same)
+	_check(paired > 0, "endless: paired potholes still appear at high difficulty (%d)" % paired)
+	w.queue_free()
+
+	var course := RoadWorld.new()
+	course.setup(t, false, 1)
+	add_child(course)
+	var worst_course := INF
+	for i in course.obstacles.size():
+		for j in range(i + 1, course.obstacles.size()):
+			var a := course.obstacles[i]
+			var b := course.obstacles[j]
+			if course.lane_of(a.lateral) != course.lane_of(b.lateral):
+				worst_course = minf(worst_course, RoadWorld.clear_gap(a, b))
+	_check(worst_course >= t.swap_gap_m - 0.01, "course: opposite-lane hazards >= swap_gap_m apart (%.1f m)" % worst_course)
+	course.queue_free()
+
+
+## 0.7.0: a pothole knocks the bike about for pothole_shaky_s, but riding on
+## with centred steering still doesn't make you fall.
+func _test_pothole() -> void:
+	print("[pothole]")
+	var t := BikeTuning.load_default()
+	var bike := Bike.new()
+	bike.tuning = t
+	bike.assist_scale = GameSession.ASSIST_SCALES[GameSession.Assist.NORMAL]
+	bike.noise_seed = 777
+	add_child(bike)
+	bike.respawn(Vector3.ZERO, 0.0)
+	bike.state = Bike.State.RIDING
+	bike.speed = 90.0 * t.speed_per_rpm
+	var dt := 1.0 / 60.0
+	for _i in 60:
+		bike.step(dt, 0.0, 90.0)
+	var k_before := bike.stability_k
+	bike.hit_pothole()
+	bike.step(dt, 0.0, 90.0)
+	var k_after := bike.stability_k
+	var peak := 0.0
+	var time := 0.0
+	while time < 6.0 and bike.is_upright():
+		bike.step(dt, 0.0, 90.0)
+		peak = maxf(peak, absf(bike.lean))
+		time += dt
+	print("    k %.1f -> %.1f right after, peak lean %.1f deg, shaky left %.2f" % [k_before, k_after, rad_to_deg(peak), bike.pothole_shake()])
+	_check(k_after < k_before * 0.8, "pothole makes the bike less stable for a moment")
+	_check(bike.is_upright(), "pothole at cruise with no steering doesn't make you fall")
+	_check(rad_to_deg(peak) > 8.0, "pothole gives a noticeable lean (%.1f deg)" % rad_to_deg(peak))
+	_check(bike.pothole_shake() == 0.0 and bike.stability_k > k_before * 0.95, "shakiness wears off")
+	bike.queue_free()
 
 
 ## Pure bike physics (no road): how long until the bike falls when the riders

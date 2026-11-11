@@ -6,7 +6,7 @@ Every gameplay number lives in one of three Resources. Edit them in the Godot In
 |---|---|---|
 | `data/bike_tuning.tres` | `scripts/bike/bike_tuning.gd` | Bike geometry, pedalling → speed, steering, balance, crashing, crash effects (visual only) |
 | `data/input_tuning.tres` | `scripts/input/input_tuning.gd` | OSC port/addresses, theremin smoothing/deadzone/invert, pedal-stroke → RPM |
-| `data/road_tuning.tres` | `scripts/world/road_tuning.gd` | Lane width, rails, endless generator, obstacles, get-up rules, cameras, crash camera and shake |
+| `data/road_tuning.tres` | `scripts/world/road_tuning.gd` | Lane width, rails, endless generator, obstacles and hazard spacing (`swap_gap_m`, `same_lane_gap_m`, paired potholes), get-up rules, cameras, crash camera and shake |
 
 ## Bike model and first-person camera (`scenes/bike/bike_model.tscn`)
 
@@ -48,7 +48,7 @@ The bike is simulated directly rather than with Godot's physics engine; that's s
    - **T − k clearly below 0** (Easy and Normal above `stable_speed`): the bike holds itself up at `lean_eq`, steering simply carves turns, and hands-off never falls.
    - **T − k ≈ 0 is the dead zone:** steering barely moves the lean, so you can't balance. Don't tune an assist level onto it. (Normal passes through it at about 8 km/h since 0.3.0; riders only cross it, so that's fine. Hard stays well below it.)
    - The smoke test prints the time to fall with no pedalling, no steering and full steer at cruising speed (`[fall times]`).
-4. **Falling.** |lean| > `fall_angle_deg` → FALLING, and the bike tips to `fallen_rest_deg` and slides to a stop (`ground_friction`). Below `stall_speed` for `stall_fall_s` it tips over regardless. Obstacles call `crash()`, which keeps `impact_speed_keep` of the speed. Potholes add a random `pothole_kick` to the lean rate instead.
+4. **Falling.** |lean| > `fall_angle_deg` → FALLING, and the bike tips to `fallen_rest_deg` and slides to a stop (`ground_friction`). Below `stall_speed` for `stall_fall_s` it tips over regardless. Obstacles call `crash()`, which keeps `impact_speed_keep` of the speed. Potholes add a random `pothole_kick` to the lean rate instead, keep `pothole_speed_keep` of the speed, jolt the bike up (`pothole_hop`) and shake the camera (`shake_pothole`). For `pothole_shaky_s` after that (fading out) the bike loses `pothole_stability_loss` of its k, jitters (`pothole_jitter`) and the handlebar twitches (`pothole_bar_twitch_deg`, visual only). 0.7.0 smoke test: at cruise with no steering the lean peaks at ~11° and the bike stays up.
    - **Crash effects** (visual only, "Crash effects" group in `bike_tuning`): a hard hit throws the rider (`rider_throw_keep`, `rider_throw_up`, `rider_tumble`), spins and bounces the bike (`crash_spin_deg_s`, `crash_hop`), shakes the camera (`shake_impact`) and plays slow motion (`slowmo_scale` for `slowmo_s` real seconds). Plain falls use `soft_fall_throw` and `shake_fall`. Cones and barriers you hit go flying and stop blocking the road. The crash camera (`road_tuning` "Crash camera" group) pulls back and orbits in both camera modes.
 5. **Guard rails are forgiving (0.3.0).** Touching a rail scrapes along it instead of crashing: the bike is held at the rail, slowed (`road.rail_scrape_decel`), turned away until it points `rail_away_deg` off the rail (`rail_turn_deg_s`), and its lean is calmed (`rail_lean_calm`). The HUD shows "RAIL!" with the time left. Only `rail_grace_s` of rail time crashes you; the time drains at `rail_recover_rate` × real time once you're off it.
 6. **Foot down** (the start, and after every respawn): the bike is held upright until `launch_speed`. Steering is weaker (`foot_down_steer_factor`).
@@ -72,6 +72,8 @@ The bike is simulated directly rather than with Godot's physics engine; that's s
 | Restart countdown | `road.restart_countdown_s` (1 s after R / Back / Restart), `road.countdown_s` (3 s, first ride only) |
 | Road too narrow / rails too close | `road.lane_width_m`, `road.rail_gap_m` |
 | Endless too hard too soon | `road.endless_intro_m` ↑ (straight warm-up), `road.difficulty_ramp_m` ↑, `road.difficulty_curve` ↑, `road.obstacle_gap_hard_m` ↑ |
+| Potholes too harsh / too soft | `bike.pothole_kick`, `bike.pothole_stability_loss`, `bike.pothole_shaky_s` (how long it lasts), `bike.shake_pothole` (camera), `bike.pothole_jitter` |
+| Not enough room to swap lanes between hazards | `road.swap_gap_m` ↑ (18 m of clear road between hazards in opposite lanes; it's a distance, so at higher speed it's less time) |
 | Course start too hard | `CourseData.SEGMENTS` / `OBSTACLES` in `course_data.gd` (plain data) |
 
 ## Regression check after tuning

@@ -151,7 +151,6 @@ func _extend_endless(to_s: float) -> void:
 
 func _spawn_endless_obstacles(to_s: float) -> void:
 	while _next_obstacle_s < to_s:
-		var s := _next_obstacle_s
 		var lane := _last_lane
 		if _rng.randf() < 0.7:
 			lane = 1 - _last_lane
@@ -160,14 +159,43 @@ func _spawn_endless_obstacles(to_s: float) -> void:
 		var lat := lane_center(lane)
 		if kind == Obstacle.Kind.POTHOLE:
 			lat += _rng.randf_range(-0.4, 0.4)
-		obstacles.append(Obstacle.make(kind, s, lat, tuning.lane_width_m))
-		# Harder: sometimes a pothole in the other lane too, so there's no free line.
-		if difficulty > 0.4 and kind != Obstacle.Kind.POTHOLE and _rng.randf() < 0.35 * difficulty:
-			var ps := s + _rng.randf_range(-4.0, 4.0)
-			obstacles.append(Obstacle.make(Obstacle.Kind.POTHOLE, ps, lane_center(1 - lane), tuning.lane_width_m))
+		var o := _place_spaced(Obstacle.make(kind, _next_obstacle_s, lat, tuning.lane_width_m))
+		# Harder: sometimes a pothole in the other lane just after it. Ride past
+		# the obstacle in the free lane, then swap back at once. Always at least
+		# swap_gap_m of clear road between the two, never side by side.
+		if difficulty > tuning.paired_pothole_from and kind != Obstacle.Kind.POTHOLE 				and _rng.randf() < tuning.paired_pothole_chance * difficulty:
+			var p := Obstacle.make(Obstacle.Kind.POTHOLE, 0.0, lane_center(1 - lane), tuning.lane_width_m)
+			p.s = o.s + o.half_along + tuning.swap_gap_m + p.half_along + _rng.randf_range(0.0, tuning.paired_pothole_spread_m)
+			_place_spaced(p)
 		var gap := lerpf(tuning.obstacle_gap_easy_m, tuning.obstacle_gap_hard_m, difficulty)
 		gap *= 1.0 + _rng.randf_range(-tuning.obstacle_gap_jitter, tuning.obstacle_gap_jitter)
-		_next_obstacle_s += maxf(gap, 8.0)
+		_next_obstacle_s = o.s + maxf(gap, 8.0)
+
+
+## Clear road needed between two hazards: swap_gap_m if they're in opposite
+## lanes (you have to change lanes between them), same_lane_gap_m otherwise.
+func needed_gap(a: Obstacle, b: Obstacle) -> float:
+	return tuning.swap_gap_m if lane_of(a.lateral) != lane_of(b.lateral) else tuning.same_lane_gap_m
+
+
+## Clear road between two hazards along s (negative = they overlap).
+static func clear_gap(a: Obstacle, b: Obstacle) -> float:
+	return absf(a.s - b.s) - a.half_along - b.half_along
+
+
+## Adds o to the road, first pushing it further along until it has enough
+## clear road to every hazard already placed (see needed_gap). Returns o.
+func _place_spaced(o: Obstacle) -> Obstacle:
+	var moved := true
+	while moved:
+		moved = false
+		for other in obstacles:
+			var need := needed_gap(o, other)
+			if clear_gap(o, other) < need - 0.001:
+				o.s = other.s + other.half_along + need + o.half_along
+				moved = true
+	obstacles.append(o)
+	return o
 
 
 func _pick_kind() -> Obstacle.Kind:

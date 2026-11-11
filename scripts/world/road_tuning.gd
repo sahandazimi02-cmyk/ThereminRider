@@ -69,6 +69,20 @@ const PATH := "res://data/road_tuning.tres"
 @export_range(0.0, 10.0, 0.1) var weight_barrier: float = 2.0
 @export_range(0.0, 10.0, 0.1) var weight_car: float = 1.5
 @export_range(0.0, 10.0, 0.1) var weight_pothole: float = 1.5
+## Free road between two hazards in opposite lanes (back of one to front of
+## the next, m), so there's always room to pass one and swap lanes before the
+## next. Hazards that would sit closer are pushed further down the road. Also
+## used for the paired potholes below. Raise it if swapping feels rushed.
+@export_range(4.0, 60.0, 0.5) var swap_gap_m: float = 18.0
+## Free road between two hazards in the same lane (m), so they never overlap.
+@export_range(0.0, 20.0, 0.5) var same_lane_gap_m: float = 3.0
+## From this difficulty on, an obstacle can come with a pothole in the other
+## lane a little further on (pass the obstacle, then swap lanes at once).
+@export_range(0.0, 1.0, 0.01) var paired_pothole_from: float = 0.4
+## Chance of that paired pothole at full difficulty (scales with difficulty).
+@export_range(0.0, 1.0, 0.01) var paired_pothole_chance: float = 0.35
+## Extra random distance after swap_gap_m before the paired pothole (m).
+@export_range(0.0, 30.0, 0.5) var paired_pothole_spread_m: float = 6.0
 
 @export_group("Crash & reset")
 ## After a crash, the bike must lie still this long before pedalling can get

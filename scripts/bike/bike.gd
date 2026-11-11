@@ -79,6 +79,7 @@ func _ready() -> void:
 		tuning = BikeTuning.load_default()
 	model = MODEL_SCENE.instantiate() as BikeModel
 	model.name = "Model"
+	model.use_handlebar_model = GameSession.handlebar_model
 	add_child(model)
 	if noise_seed != 0:
 		_rng.seed = noise_seed

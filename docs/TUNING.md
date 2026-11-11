@@ -16,16 +16,41 @@ Every gameplay number lives in one of three Resources. Edit them in the Godot In
 | `truck_length_m` | 9.5 | Trucks and the bus are stretched to this length (wheels stay round) |
 | `truck_chance` | 0.3 | Share of car hazards (parked and oncoming) that are trucks/buses |
 | `vehicle_hit_width` | 0.85 | Share of the model's width that counts for hits |
-| `weight_car` | 2.5 | How often parked cars/trucks come (0.9.0: 1.5 → 2.5; cones 3, barrier 2, pothole 1.5) |
-| `weight_oncoming` / `oncoming_from` | 2.2 / 0 | How often oncoming cars come, and from which difficulty |
+| `weight_car` | 6.0 | How often parked cars/trucks come (0.9.0: 1.5 → 2.5; 0.10.1: → 2.0; 0.11.0: → 6.0. Others: cones 3.2, barrier 2.5, pothole 1.5). The weights are shares of each pick: raising one makes the others rarer unless you also shorten `obstacle_gap_*_m` |
+| `weight_oncoming` / `oncoming_from` | 2.2 / 0 | How often oncoming cars come (0.10.1: 2.2 → 1.7; 0.11.0: → 2.2), and from which difficulty. Each one also keeps `oncoming_trigger_m` of road free, so it crowds out other hazards |
 | `oncoming_trigger_m` | 120 | The car appears this far ahead and drives at you. Also the stretch of road kept free for it |
 | `oncoming_speed_easy_mps` / `_hard_mps` | 7 / 12 | Its speed at difficulty 0 / 1 |
-| `weight_cow` / `cow_from` | 1.0 / 0 | How often cows come, and from which difficulty |
+| `weight_cow` / `cow_from` | 2.7 / 0 | How often cows come (0.10.1: 1.0 → 2.4; 0.11.0: → 2.7), and from which difficulty |
 | `cow_side_m` | 1.5 | Where it waits, outside the rail |
 | `cow_length_m` | 2.4 | Model size (and hit box) |
 | `cow_speed_mps` / `cow_anim_speed` | 1.9 / 1.45 | Walking speed across the road / walk animation speed |
 | `cow_lead_min_s` / `cow_lead_max_s` | 2.5 / 5.5 | It starts walking when you're this many seconds away; lower = it's nearer its start side when you arrive |
 | `cow_rail_gap_m` | 7 | Length of the opening in the guard rail (both sides) where a cow crosses; 0 = no opening |
+| `cow_moo_volume_db` | 0 | Moo loudness (dB) |
+| `cow_moo_pitch_jitter` | 0.12 | Random pitch per moo, 1 ± this |
+| `cow_moo_unit_m` / `cow_moo_max_m` | 12 / 150 | Full volume within `unit` m, fades beyond, silent past `max` m. Raise `unit` to hear the moo from further away |
+
+### Audio (0.13.0, `road_tuning`)
+
+| Field | Default | What it does |
+|---|---|---|
+| `ambience_volume_db` | −22 | Nature ambience loudness (dB). −80 = off; −16 is noticeably louder |
+| `ambience_fade_in_s` | 2.0 | Fade-in when a ride scene opens |
+
+### Road signs (0.10.0, `road_tuning`, visual only)
+
+| Knob | Default | What it does |
+|---|---|---|
+| `sign_height_m` | 3.6 | Ordinary signs (`Assets/Roaad signs used random.glb`) are scaled to this height, post foot to sign top |
+| `hazard_sign_height_m` | 4.8 | Warning signs (`Assets/Roaad signs hazards.glb`); bigger than real ones so you can read them in time |
+| `sign_spacing_min_m` / `sign_spacing_max_m` | 160 / 380 | Ordinary signs: distance to the next one, random between these. Raise for fewer signs |
+| `hazard_sign_lead_m` | 40 | Warning signs stand this far before their hazard (roadwork → cones/barrier, pothole, cow; cars get none) |
+| `hazard_sign_repeat_m` | 90 | No second warning of the same kind this close: one sign covers a run of the same hazard. 0 = a sign before every hazard |
+| `sign_hazard_clear_m` | 30 | Ordinary signs keep this far from a warning sign |
+| `sign_min_gap_m` | 12 | Minimum distance between two signs on the same side; a warning sign that would stand closer goes on the left side |
+| `sign_rail_clearance_m` | 0.8 | Gap between the guard rail and the nearest edge of a sign |
+
+Which sign is which is in `scripts/world/road_signs.gd` by node name: `NOT_RANDOM` (the random file's copies of the roadwork and digging-worker warnings, never used at random), `CURVE_SIGNS` (chevron, big arrow: the usual sign before a right bend) and `RIGHT_ONLY` (detour, one way). If you re-export the GLBs and Blender renames the objects, update those lists.
 
 ### Score (0.9.0, `road_tuning`)
 
@@ -39,6 +64,7 @@ Every gameplay number lives in one of three Resources. Edit them in the Godot In
 These are visual only, so they live in a scene instead of a `.tres`. Open `scenes/bike/bike_model.tscn` in Godot:
 
 - **Model:** select the root `BikeModel` node. The Inspector has every shape point in two groups: **Bike** (wheels, seat, head tube, `handlebar` position, `handlebar_half_width`, `handlebar_sweep`, `handlebar_rise`) and **Rider** (`hip`, `shoulder`, `head`, arm and leg lengths, `elbow_direction`, `show_rider`). The model rebuilds live in the viewport as you change them (the script is `@tool`). Positions are in metres; forward is -Z, up is +Y, the origin is on the ground between the wheels.
+- **Handlebar model (0.12.0):** the **Handlebar model** group on `BikeModel` places `Assets/steering.glb`. `use_handlebar_model` is what the main menu's Handlebar button sets (untick for the classic bar). `model_grip_width` scales it; `model_offset` moves it from its mount (the bottom of its stem sits on the head-tube top + this); `model_tilt_deg` tips it forward/back; `model_stem_keep` shortens its tall stem (the stem's height range in the GLB is `model_stem_band`); `model_cut_below` hides everything below that height so its steerer doesn't poke through the tyre (lower it together with a higher `model_offset.y` to show the model's little dashboard on the head tube); `model_tint` and `model_shine` set how dark and how chrome it looks. `model_yaw_deg` only fixes the GLB's own orientation. The hands always hold the model's grips.
 - **First-person camera:** select the `FirstPersonCamera` child. Move and rotate it with the gizmo; its **FOV** is the in-game first-person FOV. Tick **Preview** in the viewport's top bar to see what the rider sees, and tick `preview_first_person` on `BikeModel` to hide the head and neck like the game does.
 - `fp_roll_factor` (in `road_tuning`, "Cameras" group) is how much the first-person view tilts with the bike's lean: 1 locks the view to the rider's head (bars and arms stay still on screen), lower keeps the horizon steadier. `speed_fov_boost_deg` is still added to the FOV at speed.
 - While the game runs (F5), the same values can be changed live in the **Remote** scene tree: `Game/Bike/Model` and `Game/Bike/Model/FirstPersonCamera`.
@@ -102,8 +128,10 @@ The bike is simulated directly rather than with Godot's physics engine; that's s
 | Not enough room to swap lanes between hazards | `road.swap_gap_m` ↑ (18 m of clear road between hazards in opposite lanes; it's a distance, so at higher speed it's less time) |
 | Oncoming cars too sudden / too easy | `road.oncoming_trigger_m` ↑ (more warning), `road.oncoming_speed_*_mps` ↓/↑, `road.weight_oncoming` |
 | Cow too hard to get past | `road.cow_speed_mps` ↑ (gets out of the way sooner), `road.cow_lead_*_s`, `road.cow_length_m` ↓, `road.weight_cow` |
+| Warning signs too late / too small | `road.hazard_sign_lead_m` ↑, `road.hazard_sign_height_m` ↑; a warning before every hazard: `road.hazard_sign_repeat_m` 0 |
+| Too many / too few roadside signs | `road.sign_spacing_min_m` / `_max_m` |
 | Trucks too long / short | `road.truck_length_m`, `road.truck_chance` |
-| Difficulty climbs too fast / slow | `road.difficulty_ramp_m` (1800 m since 0.9.0), `road.difficulty_curve` (1.0 = linear), `road.obstacle_gap_easy_m` (80) / `_hard_m` (30) |
+| Difficulty climbs too fast / slow | `road.difficulty_ramp_m` (1800 m since 0.9.0), `road.difficulty_curve` (1.0 = linear), `road.obstacle_gap_easy_m` (53 since 0.11.0) / `_hard_m` (20) |
 | Course start too hard | `CourseData.SEGMENTS` / `OBSTACLES` in `course_data.gd` (plain data) |
 
 ## Regression check after tuning

@@ -4,6 +4,6 @@
 
 [resource]
 script = ExtResource("1_script")
-speed_per_rpm = 0.16
-max_speed_kmh = 73.5
-max_accel = 5.0
+speed_per_rpm = 0.13
+max_speed_kmh = 65.0
+max_accel = 3.7

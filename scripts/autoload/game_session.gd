@@ -22,6 +22,11 @@ const ASSIST_SCALES := [Vector2(1.5, 0.75), Vector2(1.0, 1.0), Vector2(0.2, 1.2)
 var mode: Mode = Mode.ENDLESS
 var assist: Assist = Assist.NORMAL
 var first_person: bool = false
+## Borderless fullscreen instead of a window (main menu "Display" button).
+var fullscreen: bool = false
+## Handlebar GLB (Assets/steering.glb) instead of the classic generated bar
+## (main menu "Handlebar" button).
+var handlebar_model: bool = true
 var input_profile: InputProfile = InputProfile.CONTROLLER
 var best_endless_m: float = 0.0
 var best_course_s: float = 0.0
@@ -33,6 +38,8 @@ func _ready() -> void:
 	if _cfg.load(SAVE_PATH) == OK:
 		assist = clampi(int(_cfg.get_value("settings", "assist", Assist.NORMAL)), 0, 2) as Assist
 		first_person = bool(_cfg.get_value("settings", "first_person", false))
+		fullscreen = bool(_cfg.get_value("settings", "fullscreen", false))
+		handlebar_model = bool(_cfg.get_value("settings", "handlebar_model", true))
 		input_profile = clampi(int(_cfg.get_value("settings", "input_profile", InputProfile.CONTROLLER)),
 				0, INPUT_PROFILE_NAMES.size() - 1) as InputProfile
 		best_endless_m = float(_cfg.get_value("best", "endless_m", 0.0))
@@ -42,10 +49,24 @@ func _ready() -> void:
 func save() -> void:
 	_cfg.set_value("settings", "assist", int(assist))
 	_cfg.set_value("settings", "first_person", first_person)
+	_cfg.set_value("settings", "fullscreen", fullscreen)
+	_cfg.set_value("settings", "handlebar_model", handlebar_model)
 	_cfg.set_value("settings", "input_profile", int(input_profile))
 	_cfg.set_value("best", "endless_m", best_endless_m)
 	_cfg.set_value("best", "course_s", best_course_s)
 	_cfg.save(SAVE_PATH)
+
+
+## Puts the window in fullscreen or back in a window to match `fullscreen`.
+## Called by the main menu (not at autoload time, so test and screenshot
+## scenes keep their window). Leaves a maximized window alone.
+func apply_window_mode() -> void:
+	var mode := DisplayServer.window_get_mode()
+	var is_full := mode == DisplayServer.WINDOW_MODE_FULLSCREEN or mode == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+	if fullscreen and not is_full:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	elif not fullscreen and is_full:
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 
 
 func assist_name() -> String:

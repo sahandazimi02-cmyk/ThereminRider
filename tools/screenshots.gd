@@ -19,6 +19,12 @@ func _run() -> void:
 		_bot(game, 90.0)
 		await get_tree().physics_frame
 	await _shot("first_person")
+	# The classic generated handlebar (main menu "Handlebar: Classic").
+	var glb := game.bike.model.use_handlebar_model
+	game.bike.model.use_handlebar_model = not glb
+	await get_tree().physics_frame
+	await _shot("first_person_classic" if glb else "first_person_model")
+	game.bike.model.use_handlebar_model = glb
 
 	# Hard hit: steer into the rail, catch the rider mid-air, then on the ground.
 	game.cam.first_person = false
@@ -89,6 +95,37 @@ func _run() -> void:
 	game.road._place_node(truck)
 	await get_tree().process_frame
 	await _shot("vehicles_first_person")
+	game.queue_free()
+	await get_tree().process_frame
+
+	# 0.10.0 road signs: ride up to the first warning sign, then the first
+	# ordinary sign, and photograph each from ~22 m away.
+	game = _make_game(GameSession.Mode.ENDLESS)
+	for want_hazard: bool in [true, false]:
+		var found: RoadSigns.Placed = null
+		for _f in 60 * 90:
+			_bot(game, 90.0)
+			await get_tree().physics_frame
+			for sg in game.road.signs:
+				var ahead := sg.s - game.bike_s
+				if sg.hazard == want_hazard and sg.node != null and ahead > 18.0 and ahead < 24.0:
+					found = sg
+			if found != null:
+				break
+		if found == null:
+			print("    no %s sign reached" % ("warning" if want_hazard else "ordinary"))
+			continue
+		print("    %s sign '%s' at %.0f m, %.0f m ahead" % ["warning" if want_hazard else "ordinary", found.sign_name, found.s, found.s - game.bike_s])
+		var shot := "sign_warning" if want_hazard else "sign_ordinary"
+		game.cam.first_person = false
+		for _f in 3:
+			RiderInput.override_cadence = 0.0
+			await get_tree().physics_frame
+		await _shot(shot)
+		game.cam.first_person = true
+		for _f in 3:
+			await get_tree().physics_frame
+		await _shot(shot + "_first_person")
 	game.queue_free()
 	await get_tree().process_frame
 

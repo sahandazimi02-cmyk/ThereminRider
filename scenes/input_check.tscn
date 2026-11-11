@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://ce80dbhfs61en"]
 
-[ext_resource type="Script" path="res://scripts/ui/input_check.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://br3uohbfmlgrx" path="res://scripts/ui/input_check.gd" id="1_script"]
 
-[node name="InputCheck" type="Control"]
+[node name="InputCheck" type="Control" unique_id=550484992]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

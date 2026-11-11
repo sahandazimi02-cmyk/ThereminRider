@@ -30,8 +30,10 @@ func _run() -> void:
 	_test_osc()
 	await _test_profiles()
 	_test_cadence()
+	_test_handlebar()
 	_test_road()
 	_test_spacing()
+	_test_signs()
 	await _test_movers()
 	_test_fall_times()
 	_test_pothole()
@@ -42,6 +44,38 @@ func _run() -> void:
 	print("=== %s (%d failure%s) ===" % ["OK" if failures == 0 else "FAILED", failures, "" if failures == 1 else "s"])
 	RiderInput.override_enabled = false
 	get_tree().quit(1 if failures > 0 else 0)
+
+
+## Handlebar GLB vs the classic generated bar (main menu "Handlebar").
+func _test_handlebar() -> void:
+	print("-- handlebar models")
+	var scene: PackedScene = load("res://scenes/bike/bike_model.tscn")
+	for use_glb: bool in [true, false]:
+		var m := scene.instantiate() as BikeModel
+		m.use_handlebar_model = use_glb
+		add_child(m)
+		m.update_pose(0.0, 0.3, 0.0, 0.0)
+		var label := "model" if use_glb else "classic"
+		_check((m.handlebar_mesh != null) == use_glb, "%s: handlebar GLB %s" % [label, "built" if use_glb else "not used"])
+		var reach := m.upper_arm_length + m.forearm_length
+		for side: float in [-1.0, 1.0]:
+			var grip := m._grip(side)
+			var sh := m._shoulder(side)
+			_check(sh.distance_to(grip) < reach, "%s: %s grip %.2f m from the shoulder (arm %.2f m)" % [label, "left" if side < 0.0 else "right", sh.distance_to(grip), reach])
+			_check(grip.y > m.head_tube_top.y and grip.y < m.shoulder.y, "%s: %s grip height %.2f m between head tube and shoulder" % [label, "left" if side < 0.0 else "right", grip.y])
+		if use_glb and m.handlebar_mesh != null:
+			# Lowest point of any drawn triangle, bike space, steering straight.
+			m.update_pose(0.0, 0.0, 0.0, 0.0)
+			var to_bike := m.steer_node.transform * m.handlebar_mesh.transform
+			var lo := INF
+			var mesh := m.handlebar_mesh.mesh
+			for si in mesh.get_surface_count():
+				var arrays := mesh.surface_get_arrays(si)
+				var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				for i: int in arrays[Mesh.ARRAY_INDEX]:
+					lo = minf(lo, (to_bike * verts[i]).y)
+			_check(lo >= m.model_cut_below - 0.15, "model: steerer cut off near the head tube (lowest drawn point %.2f m)" % lo)
+		m.free()
 
 
 ## RIDER_OSC_PROBE=1: listen on the real UDP port for 4 s and report what
@@ -205,6 +239,92 @@ func _test_spacing() -> void:
 				worst_course = minf(worst_course, RoadWorld.clear_gap(a, b))
 	_check(worst_course >= t.swap_gap_m - 0.01, "course: opposite-lane hazards >= swap_gap_m apart (%.1f m)" % worst_course)
 	course.queue_free()
+
+
+## 0.10.0: ordinary roadside signs only now and then, a warning sign a little
+## before every roadwork / pothole / cow hazard, all outside the rails.
+func _test_signs() -> void:
+	print("[road signs]")
+	var t := RoadTuning.load_default()
+	for endless: bool in [true, false]:
+		var label := "endless" if endless else "course"
+		var w := RoadWorld.new()
+		w.setup(t, endless, 999)
+		add_child(w)
+		var end_s := t.start_straight_m + t.endless_intro_m + t.difficulty_ramp_m + 1500.0 if endless else w.finish_s
+		var seen := {}
+		var warned := {}
+		var hazards := 0
+		var unwarned := 0
+		var tightest := INF
+		var near_warning := INF
+		var inside_rail := 0
+		var bad_random := 0
+		var built := 0
+		var arrows := 0
+		var wrong_arrow := 0
+		var s := 0.0
+		while s < end_s:
+			w.update_around(s)
+			var ordinary: Array[float] = []
+			for sg in w.signs:
+				seen[sg.get_instance_id()] = sg
+				if sg.node != null:
+					built += 1 if sg.node.get_child_count() > 0 else 0
+				var span := RoadSigns.span_of(sg.sign_name, sg.height)
+				var inner := sg.lateral + span.x if sg.lateral > 0.0 else -(sg.lateral + span.y)
+				if inner < w.rail_offset() - 0.01:
+					inside_rail += 1
+				if not sg.hazard:
+					ordinary.append(sg.s)
+					if sg.sign_name in RoadSigns.HAZARD_SIGNS or sg.sign_name in RoadSigns.NOT_RANDOM:
+						bad_random += 1
+					if RoadSigns.points_right(sg.sign_name):
+						var bend := 0.0
+						for d: float in [30.0, 50.0, 70.0, 90.0]:
+							bend += w.curvature_at(sg.s + d) * 0.25
+						if bend <= RoadSigns.BEND_K:
+							wrong_arrow += 1
+						else:
+							arrows += 1
+					for h in w.signs:
+						if h.hazard:
+							near_warning = minf(near_warning, absf(h.s - sg.s))
+			ordinary.sort()
+			for i in range(1, ordinary.size()):
+				tightest = minf(tightest, ordinary[i] - ordinary[i - 1])
+			for o in w.obstacles:
+				var want := RoadSigns.hazard_sign_for(o.kind)
+				if want == "" or warned.has(o.get_instance_id()) or o.start_s > s + t.view_ahead_m:
+					continue
+				warned[o.get_instance_id()] = true
+				hazards += 1
+				var ok := false
+				for sg in w.signs:
+					var ahead := o.start_s - sg.s
+					if sg.hazard and sg.sign_name == want and ahead > 0.0 and ahead <= t.hazard_sign_lead_m + t.hazard_sign_repeat_m + t.sign_min_gap_m * 3.0:
+						ok = true
+						break
+				if not ok:
+					unwarned += 1
+			s += 40.0
+		var n_hazard := 0
+		var n_ordinary := 0
+		for sg: RoadSigns.Placed in seen.values():
+			if sg.hazard:
+				n_hazard += 1
+			else:
+				n_ordinary += 1
+		print("    %s to %.0f m: %d ordinary signs (closest %.0f m apart), %d warning signs for %d hazards, closest ordinary-to-warning %.0f m" % [label, end_s, n_ordinary, tightest, n_hazard, hazards, near_warning])
+		_check(n_ordinary >= 3 and n_ordinary <= int(end_s / t.sign_spacing_min_m) + 1, "%s: ordinary signs appear only now and then (%d)" % [label, n_ordinary])
+		_check(tightest >= t.sign_spacing_min_m - 0.01, "%s: ordinary signs >= sign_spacing_min_m apart (%.0f m)" % [label, tightest])
+		_check(n_hazard > 0 and unwarned == 0, "%s: every roadwork/pothole/cow hazard has its warning sign before it (%d missing)" % [label, unwarned])
+		_check(near_warning >= t.sign_hazard_clear_m - 0.01, "%s: ordinary signs keep clear of warning signs (%.0f m)" % [label, near_warning])
+		_check(inside_rail == 0, "%s: no sign reaches inside the guard rail" % label)
+		_check(bad_random == 0, "%s: warning signs are never used as ordinary signs" % label)
+		_check(built > 0, "%s: sign models load from Assets/" % label)
+		_check(wrong_arrow == 0, "%s: arrow signs only stand before a right bend (%d ok, %d wrong)" % [label, arrows, wrong_arrow])
+		w.queue_free()
 
 
 ## 0.7.0: a pothole knocks the bike about for pothole_shaky_s, but riding on
@@ -425,6 +545,8 @@ func _make_game(mode: GameSession.Mode) -> Game:
 	var a := OS.get_environment("RIDER_ASSIST")
 	GameSession.assist = (int(a) if a.is_valid_int() else 1) as GameSession.Assist
 	add_child(game)
+	_check(game.ambience != null and game.ambience.stream != null and game.ambience.playing,
+			"nature ambience is loaded and playing")
 	return game
 
 
@@ -569,6 +691,9 @@ func _test_movers() -> void:
 	_check(not cow.active, "cow waits until the bike is lead_s away")
 	w.update_movers(1.0 / 60.0, 520.0 - 7.0 * (cow.lead_s - 0.5), 7.0)
 	_check(cow.active, "cow starts walking when the bike is lead_s away")
+	_check(cow.moo_player != null and cow.moo_player.stream != null, "cow has a moo sound (%s)" % Obstacle.COW_MOO_SOUND)
+	if cow.moo_player != null:
+		_check(cow.moo_player.playing, "cow moos when it starts crossing")
 	if cow.anim != null:
 		_check(cow.anim.current_animation == Obstacle.COW_WALK_ANIM, "cow plays its walk animation while crossing")
 	var crossed_mid := false

@@ -10,12 +10,19 @@ var path: RoadPath
 ## Course mode: distance of the finish line (-1 in endless).
 var finish_s := -1.0
 var obstacles: Array[Obstacle] = []
+## Roadside signs (ordinary ones now and then, warnings before hazards).
+var signs: Array[RoadSigns.Placed] = []
 ## 0..1 endless difficulty (driven by distance).
 var difficulty := 0.0
 
 var _rng := RandomNumberGenerator.new()
 ## Separate RNG for crash effects so they never change the generated road.
 var _fx_rng := RandomNumberGenerator.new()
+## Separate RNG for roadside signs so they never change the generated road.
+var _sign_rng := RandomNumberGenerator.new()
+## Separate RNG for sound variation (moo pitch) so it never changes the road.
+var _sfx_rng := RandomNumberGenerator.new()
+var _next_sign_s := 0.0
 var _chunks: Dictionary = {}  # int -> Node3D
 var _next_obstacle_s := 0.0
 var _last_lane := 1
@@ -32,6 +39,9 @@ func setup(road_tuning: RoadTuning, is_endless: bool, seed_value: int = 0) -> vo
 		_rng.randomize()
 	else:
 		_rng.seed = seed_value
+	_sign_rng.seed = hash(_rng.seed + 7717)
+	_sfx_rng.seed = hash(_rng.seed + 4243)
+	_next_sign_s = start_s() + 30.0 + _sign_rng.randf_range(0.0, tuning.sign_spacing_min_m * 0.5)
 	_make_shared_meshes()
 	path = RoadPath.new(tuning.sample_step_m)
 	path.append_straight(tuning.start_straight_m)
@@ -133,6 +143,7 @@ func update_movers(dt: float, bike_s: float, bike_speed: float) -> void:
 			Obstacle.Kind.COW:
 				if not o.active and o.s > bike_s and (o.s - bike_s) / maxf(bike_speed, 1.0) <= o.lead_s:
 					o.active = true
+					o.moo(tuning, _sfx_rng)
 				if o.active:
 					o.lateral = move_toward(o.lateral, o.end_lateral, o.speed * dt)
 					if is_equal_approx(o.lateral, o.end_lateral):
@@ -161,6 +172,7 @@ func update_around(s: float) -> void:
 			_extend_endless(s + tuning.view_ahead_m + tuning.chunk_length_m * 3.0)
 	_stream_chunks(s)
 	_stream_obstacles(s)
+	_stream_signs(s)
 
 
 # ---------------------------------------------------------------- generation
@@ -184,6 +196,9 @@ func _extend_endless(to_s: float) -> void:
 		if length > tuning.curve_ease_m * 2.0:
 			path.append_curve(length, radius, turn_right, tuning.curve_ease_m)
 	_spawn_endless_obstacles(path.length() - 10.0)
+	# Future hazards are all at or after _next_obstacle_s, so their warning
+	# signs can't land in the stretch that gets ordinary signs now.
+	_spawn_random_signs(minf(path.length() - 100.0, _next_obstacle_s - tuning.hazard_sign_lead_m - tuning.sign_hazard_clear_m))
 
 
 func _spawn_endless_obstacles(to_s: float) -> void:
@@ -202,6 +217,7 @@ func _spawn_endless_obstacles(to_s: float) -> void:
 			# The car appears trigger_m ahead and drives back down its stretch.
 			o.shift(o.trigger_m)
 		_place_spaced(o)
+		_add_hazard_sign(o)
 		# Harder: sometimes a pothole in the other lane just after it. Ride past
 		# the obstacle in the free lane, then swap back at once. Always at least
 		# swap_gap_m of clear road between the two, never side by side.
@@ -209,6 +225,7 @@ func _spawn_endless_obstacles(to_s: float) -> void:
 			var p := Obstacle.make(Obstacle.Kind.POTHOLE, 0.0, lane_center(1 - lane), tuning.lane_width_m)
 			p.shift(o.s + o.half_along + tuning.swap_gap_m + p.half_along + _rng.randf_range(0.0, tuning.paired_pothole_spread_m) - p.s)
 			_place_spaced(p)
+			_add_hazard_sign(p)
 		var gap := lerpf(tuning.obstacle_gap_easy_m, tuning.obstacle_gap_hard_m, difficulty)
 		gap *= 1.0 + _rng.randf_range(-tuning.obstacle_gap_jitter, tuning.obstacle_gap_jitter)
 		_next_obstacle_s = o.s + maxf(gap, 8.0)
@@ -275,6 +292,85 @@ func _pick_kind() -> Obstacle.Kind:
 	return Obstacle.Kind.CONES
 
 
+# ---------------------------------------------------------------- signs
+
+## Warning sign hazard_sign_lead_m before a hazard (roadwork for cones and
+## barriers, pothole, cow; none for cars). Skipped when a sign of the same kind
+## already stands within hazard_sign_repeat_m: it covers this one too.
+func _add_hazard_sign(o: Obstacle) -> void:
+	var sign_name := RoadSigns.hazard_sign_for(o.kind)
+	if sign_name == "" or not RoadSigns.has(sign_name):
+		return
+	var at := maxf(o.start_s - tuning.hazard_sign_lead_m, start_s() + 10.0)
+	if at >= o.start_s - 2.0:
+		return
+	for sg in signs:
+		if sg.hazard and sg.sign_name == sign_name and absf(sg.s - at) < tuning.hazard_sign_repeat_m:
+			return
+	# An ordinary sign not built yet makes way for the warning.
+	var i := signs.size() - 1
+	while i >= 0:
+		var other := signs[i]
+		if not other.hazard and other.node == null and absf(other.s - at) < tuning.sign_hazard_clear_m:
+			signs.remove_at(i)
+		i -= 1
+	# Right side of the road if there's room, else the left, else a bit earlier.
+	for _try in 3:
+		for right: bool in [true, false]:
+			if _sign_side_free(at, right):
+				_add_sign(at, sign_name, right, true)
+				return
+		at -= tuning.sign_min_gap_m
+		if at <= start_s() + 10.0:
+			return
+
+
+## Ordinary signs every sign_spacing_min_m..max_m up to `to_s`, on the right,
+## kept clear of warning signs. Signs with a right arrow only before a right
+## bend.
+func _spawn_random_signs(to_s: float) -> void:
+	while _next_sign_s < to_s:
+		var at := _next_sign_s
+		if _sign_near_hazard(at) or not _sign_side_free(at, true):
+			_next_sign_s += tuning.sign_min_gap_m
+			continue
+		var bend := 0.0
+		for d: float in [30.0, 50.0, 70.0, 90.0]:
+			bend += curvature_at(at + d) * 0.25
+		var sign_name := RoadSigns.pick_random(_sign_rng, bend)
+		if sign_name != "":
+			_add_sign(at, sign_name, true, false)
+		var lo := tuning.sign_spacing_min_m
+		_next_sign_s = at + _sign_rng.randf_range(lo, maxf(lo, tuning.sign_spacing_max_m))
+
+
+func _add_sign(at: float, sign_name: String, right: bool, hazard: bool) -> void:
+	var sg := RoadSigns.Placed.new()
+	sg.s = at
+	sg.sign_name = sign_name
+	sg.hazard = hazard
+	sg.height = tuning.hazard_sign_height_m if hazard else tuning.sign_height_m
+	# Post placed so the whole sign stays sign_rail_clearance_m outside the rail.
+	var span := RoadSigns.span_of(sign_name, sg.height)
+	var edge := rail_offset() + tuning.sign_rail_clearance_m
+	sg.lateral = edge - span.x if right else -edge - span.y
+	signs.append(sg)
+
+
+func _sign_side_free(at: float, right: bool) -> bool:
+	for sg in signs:
+		if (sg.lateral > 0.0) == right and absf(sg.s - at) < tuning.sign_min_gap_m:
+			return false
+	return true
+
+
+func _sign_near_hazard(at: float) -> bool:
+	for sg in signs:
+		if sg.hazard and absf(sg.s - at) < tuning.sign_hazard_clear_m:
+			return true
+	return false
+
+
 func _build_course() -> void:
 	# CourseData's first straight includes the start straight already built.
 	var first := true
@@ -297,6 +393,8 @@ func _build_course() -> void:
 		var o := Obstacle.make(Obstacle.kind_from_name(entry[2]), entry[0], lat, tuning.lane_width_m)
 		_setup_hazard(o)
 		obstacles.append(o)
+		_add_hazard_sign(o)
+	_spawn_random_signs(finish_s - 20.0)
 	_build_finish_gate()
 
 
@@ -346,6 +444,25 @@ func _stream_obstacles(s: float) -> void:
 			o.node = o.build_node(tuning, _rng)
 			add_child(o.node)
 			_place_node(o)
+		i += 1
+
+
+func _stream_signs(s: float) -> void:
+	var keep := tuning.keep_behind_m
+	var i := 0
+	while i < signs.size():
+		var sg := signs[i]
+		if sg.s < s - keep:
+			if sg.node != null:
+				sg.node.queue_free()
+				sg.node = null
+			if endless:
+				signs.remove_at(i)
+				continue
+		elif sg.node == null and sg.s < s + tuning.view_ahead_m:
+			sg.node = RoadSigns.build(sg.sign_name, sg.height)
+			add_child(sg.node)
+			sg.node.transform = Transform3D(Basis(Vector3.UP, path.yaw_at(sg.s)), path.point_at(sg.s, sg.lateral))
 		i += 1
 
 

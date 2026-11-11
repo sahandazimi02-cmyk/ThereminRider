@@ -65,6 +65,69 @@ extends Node3D
 		handlebar_rise = v
 		_changed()
 
+@export_group("Handlebar model")
+## Use the handlebar GLB (`Assets/steering.glb`) instead of the generated bar.
+## The game sets this from the main menu ("Handlebar: Model / Classic").
+@export var use_handlebar_model := true:
+	set(v):
+		use_handlebar_model = v
+		_changed()
+@export var handlebar_model: PackedScene = preload("res://Assets/steering.glb"):
+	set(v):
+		handlebar_model = v
+		_changed()
+## Turn the GLB about the vertical axis so its bar runs left-right and its
+## grips point back at the rider (the GLB's own orientation, not a tunable).
+@export_range(-180.0, 180.0, 0.1) var model_yaw_deg: float = 87.6:
+	set(v):
+		model_yaw_deg = v
+		_changed()
+## Distance between the two grip centres (m). Sets the model's scale.
+@export_range(0.3, 0.8, 0.005) var model_grip_width: float = 0.44:
+	set(v):
+		model_grip_width = v
+		_changed()
+## Moves the model from its mount point: the bottom of its stem (just above
+## its dashboard) sits on `head_tube_top` + this. The hands always hold the
+## model's grips, wherever they end up.
+@export var model_offset := Vector3(0.0, -0.18, 0.0):
+	set(v):
+		model_offset = v
+		_changed()
+## Tip the whole bar forward (+) or back (-) around its mount point, degrees.
+@export_range(-60.0, 60.0, 0.5) var model_tilt_deg: float = 0.0:
+	set(v):
+		model_tilt_deg = v
+		_changed()
+## The GLB's tall vertical stem (between `model_stem_band` heights, in the
+## GLB's own units) is shortened to this fraction of its length.
+@export_range(0.0, 1.0, 0.01) var model_stem_keep: float = 0.05:
+	set(v):
+		model_stem_keep = v
+		_changed()
+@export var model_stem_band := Vector2(-0.24, 0.22):
+	set(v):
+		model_stem_band = v
+		_changed()
+## How metallic the model looks (multiplies its metallic map). The GLB's
+## full chrome mirrors the sky and grass, so the bar looks blue-green.
+@export_range(0.0, 1.0, 0.01) var model_shine: float = 0.5:
+	set(v):
+		model_shine = v
+		_changed()
+## Multiplies the model's colour map. Its map is light grey (it only looks
+## black in a dark viewer), so darken it here for the black bar in daylight.
+@export var model_tint := Color(0.22, 0.22, 0.22):
+	set(v):
+		model_tint = v
+		_changed()
+## Hide the model's triangles that are entirely below this height (bike
+## space), so its long steerer tube doesn't poke through the front tyre.
+@export_range(0.0, 1.5, 0.005) var model_cut_below: float = 0.70:
+	set(v):
+		model_cut_below = v
+		_changed()
+
 @export_group("Rider")
 @export var show_rider := true:
 	set(v):
@@ -147,6 +210,10 @@ var head_group: Node3D
 var rider: Node3D
 var thrown := false
 
+## The handlebar GLB mesh while `use_handlebar_model` is on (else null).
+var handlebar_mesh: MeshInstance3D
+## Grip centres [left, right] of the handlebar GLB, bike space, steering straight.
+var _model_grips: Array[Vector3] = []
 var _neck: MeshInstance3D
 var _legs: Array = []  # [thigh, shin, foot] per side
 var _arms: Array = []  # [upper arm, forearm, hand] per side
@@ -223,14 +290,20 @@ func _build() -> void:
 	MeshKit.tube_between(steer_node, head_tube_bottom + off, head_tube_top + off, 0.03, "bike_frame")
 	for x: float in [-0.05, 0.05]:
 		MeshKit.tube_between(steer_node, head_tube_bottom + off + Vector3(x, 0, 0), f_axle + off + Vector3(x, 0, 0), 0.014, "bike_metal")
-	MeshKit.tube_between(steer_node, head_tube_top + off, handlebar + off, 0.018, "bike_metal")
-	MeshKit.box(steer_node, Vector3(0.05, 0.04, 0.05), handlebar + off, "bike_dark")
-	for side: float in [-1.0, 1.0]:
-		var bend := _bar_bend(side) + off
-		var end := _bar_end(side) + off
-		MeshKit.tube_between(steer_node, handlebar + off, bend, 0.016, "bike_metal")
-		MeshKit.tube_between(steer_node, bend, end, 0.016, "bike_metal")
-		MeshKit.tube_between(steer_node, bend.lerp(end, 0.35), end + (end - bend).normalized() * 0.015, 0.022, "bike_dark")
+	handlebar_mesh = null
+	_model_grips.clear()
+	if use_handlebar_model and handlebar_model != null:
+		_build_handlebar_model(off)
+	if handlebar_mesh == null:
+		# Classic generated stem, swept-back bar and grips.
+		MeshKit.tube_between(steer_node, head_tube_top + off, handlebar + off, 0.018, "bike_metal")
+		MeshKit.box(steer_node, Vector3(0.05, 0.04, 0.05), handlebar + off, "bike_dark")
+		for side: float in [-1.0, 1.0]:
+			var bend := _bar_bend(side) + off
+			var end := _bar_end(side) + off
+			MeshKit.tube_between(steer_node, handlebar + off, bend, 0.016, "bike_metal")
+			MeshKit.tube_between(steer_node, bend, end, 0.016, "bike_metal")
+			MeshKit.tube_between(steer_node, bend.lerp(end, 0.35), end + (end - bend).normalized() * 0.015, 0.022, "bike_dark")
 	front_wheel = _wheel(steer_node, f_axle + off)
 
 	# Rider (its own node, identity transform under the lean pivot, so rider
@@ -453,7 +526,151 @@ func _bar_end(side: float) -> Vector3:
 
 ## Where the hand holds the bar (bike space, steering straight).
 func _grip(side: float) -> Vector3:
+	if _model_grips.size() == 2:
+		return _model_grips[0 if side < 0.0 else 1]
 	return _bar_bend(side).lerp(_bar_end(side), 0.7)
+
+
+## Builds the handlebar GLB into one mesh under steer_node (bike space + off):
+## turned by model_yaw_deg, its stem shortened, scaled to model_grip_width,
+## mounted on the head tube, tilted, and cut below model_cut_below.
+## Also finds the grip centres for the hands. Leaves handlebar_mesh null if the
+## scene has no mesh.
+func _build_handlebar_model(off: Vector3) -> void:
+	var src := handlebar_model.instantiate()
+	var meshes := src.find_children("*", "MeshInstance3D", true, false)
+	if meshes.is_empty():
+		src.free()
+		return
+	var yaw := Basis(Vector3.UP, deg_to_rad(model_yaw_deg))
+	var cut := (model_stem_band.y - model_stem_band.x) * (1.0 - model_stem_keep)
+
+	# Pass 1: every surface in the GLB's space, stem shortened, yawed.
+	var surfaces: Array[Array] = []  # [arrays, material, normal basis]
+	var lo := INF
+	var hi := -INF
+	for n in meshes:
+		var mi := n as MeshInstance3D
+		var xf := mi.transform
+		var p := mi.get_parent()
+		while p != null and p != src:
+			if p is Node3D:
+				xf = (p as Node3D).transform * xf
+			p = p.get_parent()
+		for s in mi.mesh.get_surface_count():
+			var arrays := mi.mesh.surface_get_arrays(s)
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			for i in verts.size():
+				var v := xf * verts[i]
+				if v.y > model_stem_band.y:
+					v.y -= cut
+				elif v.y > model_stem_band.x:
+					v.y = model_stem_band.x + (v.y - model_stem_band.x) * model_stem_keep
+				v = yaw * v
+				verts[i] = v
+				lo = minf(lo, v.y)
+				hi = maxf(hi, v.y)
+			arrays[Mesh.ARRAY_VERTEX] = verts
+			var mat := mi.get_active_material(s)
+			if mat is BaseMaterial3D:
+				mat = mat.duplicate()
+				(mat as BaseMaterial3D).metallic *= model_shine
+				(mat as BaseMaterial3D).albedo_color *= model_tint
+			surfaces.append([arrays, mat, yaw * xf.basis.orthonormalized()])
+
+	# Grips: the top 8 % of the model, split into left and right.
+	var band := hi - (hi - lo) * 0.08
+	var top: Array[Vector3] = []
+	var mid_x := 0.0
+	for sf in surfaces:
+		for v: Vector3 in (sf[0] as Array)[Mesh.ARRAY_VERTEX]:
+			if v.y >= band:
+				top.append(v)
+				mid_x += v.x
+	mid_x /= maxf(top.size(), 1.0)
+	var sums := [Vector3.ZERO, Vector3.ZERO]
+	var counts := [0, 0]
+	for v in top:
+		var k := 0 if v.x < mid_x else 1
+		sums[k] += v
+		counts[k] += 1
+	if counts[0] == 0 or counts[1] == 0:
+		src.free()
+		return
+	var g_left: Vector3 = sums[0] / counts[0]
+	var g_right: Vector3 = sums[1] / counts[1]
+	# Mount point: the stem's centre line at the bottom of the (shortened) stem.
+	var stem_sum := Vector3.ZERO
+	var stem_n := 0
+	var stem_top := model_stem_band.x + (model_stem_band.y - model_stem_band.x) * model_stem_keep
+	for sf in surfaces:
+		for v: Vector3 in (sf[0] as Array)[Mesh.ARRAY_VERTEX]:
+			if v.y >= model_stem_band.x and v.y <= stem_top:
+				stem_sum += v
+				stem_n += 1
+	var mount := Vector3(0.0, model_stem_band.x, 0.0)
+	if stem_n > 0:
+		mount.z = stem_sum.z / stem_n
+	mount.x = (g_left.x + g_right.x) * 0.5  # keep the grips symmetric
+	var scale_f := model_grip_width / maxf(g_left.distance_to(g_right), 0.001)
+	var tilt := Basis(Vector3.RIGHT, -deg_to_rad(model_tilt_deg))
+	var anchor := Vector3(0.0, head_tube_top.y, head_tube_bottom.z) + model_offset
+	var place := func(v: Vector3) -> Vector3:
+		return anchor + tilt * ((v - mount) * scale_f)
+	_model_grips = [place.call(g_left), place.call(g_right)]
+
+	# Pass 2: place, drop triangles entirely below model_cut_below, build the mesh.
+	var mesh := ArrayMesh.new()
+	for sf in surfaces:
+		var arrays: Array = sf[0]
+		var turn: Basis = tilt * (sf[2] as Basis)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var bike_y := PackedFloat32Array()
+		bike_y.resize(verts.size())
+		for i in verts.size():
+			var v: Vector3 = place.call(verts[i])
+			bike_y[i] = v.y
+			verts[i] = v + off
+		arrays[Mesh.ARRAY_VERTEX] = verts
+		var normals = arrays[Mesh.ARRAY_NORMAL]
+		if normals is PackedVector3Array:
+			var nrm := normals as PackedVector3Array
+			for i in nrm.size():
+				nrm[i] = (turn * nrm[i]).normalized()
+			arrays[Mesh.ARRAY_NORMAL] = nrm
+		var tangents = arrays[Mesh.ARRAY_TANGENT]
+		if tangents is PackedFloat32Array:
+			var tan := tangents as PackedFloat32Array
+			for i in range(0, tan.size(), 4):
+				var t := (turn * Vector3(tan[i], tan[i + 1], tan[i + 2])).normalized()
+				tan[i] = t.x
+				tan[i + 1] = t.y
+				tan[i + 2] = t.z
+			arrays[Mesh.ARRAY_TANGENT] = tan
+		var idx = arrays[Mesh.ARRAY_INDEX]
+		if idx is PackedInt32Array:
+			var kept := PackedInt32Array()
+			var ids := idx as PackedInt32Array
+			for i in range(0, ids.size(), 3):
+				if bike_y[ids[i]] < model_cut_below and bike_y[ids[i + 1]] < model_cut_below and bike_y[ids[i + 2]] < model_cut_below:
+					continue
+				kept.append(ids[i])
+				kept.append(ids[i + 1])
+				kept.append(ids[i + 2])
+			if kept.is_empty():
+				continue
+			arrays[Mesh.ARRAY_INDEX] = kept
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		if sf[1] != null:
+			mesh.surface_set_material(mesh.get_surface_count() - 1, sf[1])
+	src.free()
+	if mesh.get_surface_count() == 0:
+		_model_grips.clear()
+		return
+	handlebar_mesh = MeshInstance3D.new()
+	handlebar_mesh.name = "HandlebarModel"
+	handlebar_mesh.mesh = mesh
+	steer_node.add_child(handlebar_mesh)
 
 
 ## Two-bone IK: the middle joint for a limb from root to end, bending towards pole.

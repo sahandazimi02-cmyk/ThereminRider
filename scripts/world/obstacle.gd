@@ -11,6 +11,7 @@ const KIND_NAMES := ["cones", "barrier", "car", "pothole", "oncoming", "cow"]
 const COW_SCENE := "res://Assets/cow/source/Cow.glb"
 const COW_WALK_ANIM := "walking"
 const COW_IDLE_ANIM := "iddle"  # (sic) the name in the GLB
+const COW_MOO_SOUND := "res://Assets/audio/moo.wav"
 ## Cow model proportions (width / length), so the hit box matches the model.
 const COW_WIDTH_RATIO := 0.28
 ## Extra yaw so the cow model's head points the way it walks (the model faces -Z:
@@ -46,6 +47,8 @@ var active := false
 ## Stopped for good (hit, or braked for a crash).
 var stopped := false
 var anim: AnimationPlayer = null
+## COW: 3D moo player on the cow node (null until the node is built).
+var moo_player: AudioStreamPlayer3D = null
 
 
 static func make(k: Kind, s_m: float, lateral_m: float, lane_width: float) -> Obstacle:
@@ -262,6 +265,24 @@ func _build_cow(root: Node3D, tuning: RoadTuning) -> void:
 			if anim.has_animation(n):
 				anim.get_animation(n).loop_mode = Animation.LOOP_LINEAR
 		play_cow(active and not stopped, tuning.cow_anim_speed)
+	var moo := load(COW_MOO_SOUND) as AudioStream
+	if moo != null:
+		moo_player = AudioStreamPlayer3D.new()
+		moo_player.name = "Moo"
+		moo_player.stream = moo
+		moo_player.volume_db = tuning.cow_moo_volume_db
+		moo_player.unit_size = tuning.cow_moo_unit_m
+		moo_player.max_distance = tuning.cow_moo_max_m
+		moo_player.position = Vector3(0, 1.2, 0)
+		root.add_child(moo_player)
+
+
+## The cow moos (once per call), pitch picked at random.
+func moo(tuning: RoadTuning, rng: RandomNumberGenerator) -> void:
+	if moo_player == null or not is_instance_valid(moo_player) or not moo_player.is_inside_tree():
+		return
+	moo_player.pitch_scale = 1.0 + rng.randf_range(-tuning.cow_moo_pitch_jitter, tuning.cow_moo_pitch_jitter)
+	moo_player.play()
 
 
 ## Walk or idle animation for the cow.

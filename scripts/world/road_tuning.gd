@@ -59,16 +59,22 @@ const PATH := "res://data/road_tuning.tres"
 
 @export_group("Obstacles")
 ## Gap between obstacles at the start of endless mode.
-## 0.9.0: 100 -> 80.
-@export_range(10.0, 300.0, 1.0) var obstacle_gap_easy_m: float = 80.0
-## Gap between obstacles at max difficulty. 0.9.0: 35 -> 30.
-@export_range(5.0, 200.0, 1.0) var obstacle_gap_hard_m: float = 30.0
+## 0.9.0: 100 -> 80. 0.11.0: 80 -> 53 (room for the extra cars).
+@export_range(10.0, 300.0, 1.0) var obstacle_gap_easy_m: float = 53.0
+## Gap between obstacles at max difficulty. 0.9.0: 35 -> 30. 0.11.0: 30 -> 20.
+@export_range(5.0, 200.0, 1.0) var obstacle_gap_hard_m: float = 20.0
 ## Random +/- spread on each gap (fraction).
 @export_range(0.0, 0.9, 0.01) var obstacle_gap_jitter: float = 0.35
 ## Relative chance of each obstacle type. 0.9.0: parked cars 1.5 -> 2.5.
-@export_range(0.0, 10.0, 0.1) var weight_cones: float = 3.0
-@export_range(0.0, 10.0, 0.1) var weight_barrier: float = 2.0
-@export_range(0.0, 10.0, 0.1) var weight_car: float = 2.5
+## 0.10.1: cones 3.0 -> 3.2, barrier 2.0 -> 2.2, parked cars 2.5 -> 2.0,
+## pothole 1.5 -> 1.9 (fewer cars, more of everything else).
+## 0.11.0: parked cars 2.0 -> 6.0, barrier 2.2 -> 2.5, pothole 1.9 -> 1.5.
+## Together with the shorter gaps this about doubles cars per km while the
+## other hazards stay as often per km as in 0.10.1 (the weights are shares of
+## the picks, so the others' weights move to keep their count per km).
+@export_range(0.0, 10.0, 0.1) var weight_cones: float = 3.2
+@export_range(0.0, 10.0, 0.1) var weight_barrier: float = 2.5
+@export_range(0.0, 10.0, 0.1) var weight_car: float = 6.0
 @export_range(0.0, 10.0, 0.1) var weight_pothole: float = 1.5
 ## Free road between two hazards in opposite lanes (back of one to front of
 ## the next, m), so there's always room to pass one and swap lanes before the
@@ -99,7 +105,10 @@ const PATH := "res://data/road_tuning.tres"
 
 @export_group("Oncoming cars")
 ## Relative chance of an oncoming car (same scale as the weights above).
-## 0.9.0: 1.4 -> 2.2.
+## 0.9.0: 1.4 -> 2.2. 0.10.1: 2.2 -> 1.7 (each one also keeps
+## oncoming_trigger_m of road free, so it crowds out other hazards).
+## 0.11.0: 1.7 -> 2.2 (most of the extra cars are parked: oncoming ones
+## take so much road that more of them would crowd out everything else).
 @export_range(0.0, 10.0, 0.1) var weight_oncoming: float = 2.2
 ## Oncoming cars only appear from this endless difficulty on (0 = right after the intro).
 @export_range(0.0, 1.0, 0.01) var oncoming_from: float = 0.0
@@ -112,8 +121,9 @@ const PATH := "res://data/road_tuning.tres"
 @export_range(1.0, 40.0, 0.5) var oncoming_speed_hard_mps: float = 12.0
 
 @export_group("Cow")
-## Relative chance of a cow crossing the road.
-@export_range(0.0, 10.0, 0.1) var weight_cow: float = 1.0
+## Relative chance of a cow crossing the road. 0.10.1: 1.0 -> 2.4.
+## 0.11.0: 2.4 -> 2.7 (keeps cows per km the same with the extra cars).
+@export_range(0.0, 10.0, 0.1) var weight_cow: float = 2.7
 ## Cows only appear from this endless difficulty on.
 @export_range(0.0, 1.0, 0.01) var cow_from: float = 0.0
 ## The cow waits beside the road, this far outside the rail.
@@ -132,6 +142,47 @@ const PATH := "res://data/road_tuning.tres"
 ## somewhere different on the road each time you reach it.
 @export_range(0.5, 15.0, 0.1) var cow_lead_min_s: float = 2.5
 @export_range(0.5, 15.0, 0.1) var cow_lead_max_s: float = 5.5
+## 0.13.0: the cow moos (from where it stands, 3D sound) when it starts
+## crossing. Volume in dB, and the pitch is picked at random per moo in
+## 1 +/- cow_moo_pitch_jitter so cows don't all sound the same.
+@export_range(-40.0, 12.0, 0.5) var cow_moo_volume_db: float = 0.0
+@export_range(0.0, 0.5, 0.01) var cow_moo_pitch_jitter: float = 0.12
+## The moo is at full volume within this distance and fades with distance
+## beyond it (AudioStreamPlayer3D.unit_size, m); silent past cow_moo_max_m.
+@export_range(1.0, 60.0, 0.5) var cow_moo_unit_m: float = 12.0
+@export_range(10.0, 400.0, 5.0) var cow_moo_max_m: float = 150.0
+
+@export_group("Audio")
+## 0.13.0: nature ambience that loops quietly the whole ride (dB; -80 = off).
+@export_range(-80.0, 0.0, 0.5) var ambience_volume_db: float = -22.0
+## Fade-in when a game scene opens (s).
+@export_range(0.0, 10.0, 0.1) var ambience_fade_in_s: float = 2.0
+
+@export_group("Road signs")
+## Ordinary roadside signs (res://Assets/Roaad signs used random.glb) are
+## scaled to this height, foot of the post to the top of the sign (m).
+@export_range(1.5, 8.0, 0.1) var sign_height_m: float = 3.6
+## Warning signs (res://Assets/Roaad signs hazards.glb) are bigger than real
+## ones so you can read them in time (m, foot of the post to the top).
+@export_range(1.5, 8.0, 0.1) var hazard_sign_height_m: float = 4.8
+## Ordinary signs: distance from one to the next, picked at random between
+## min and max (m). Only now and then, like a real road.
+@export_range(30.0, 2000.0, 10.0) var sign_spacing_min_m: float = 160.0
+@export_range(30.0, 2000.0, 10.0) var sign_spacing_max_m: float = 380.0
+## Warning signs (roadwork for cones/barriers, pothole, cow) stand this far
+## before their hazard (m).
+@export_range(5.0, 150.0, 1.0) var hazard_sign_lead_m: float = 40.0
+## No second warning sign of the same kind within this distance: one sign
+## covers a run of the same hazard (m).
+@export_range(0.0, 500.0, 5.0) var hazard_sign_repeat_m: float = 90.0
+## Ordinary signs keep at least this far from a warning sign, so it is never
+## lost among them (m).
+@export_range(0.0, 200.0, 5.0) var sign_hazard_clear_m: float = 30.0
+## Two signs on the same side of the road keep at least this far apart; a
+## warning sign that would stand closer goes on the other side (m).
+@export_range(2.0, 60.0, 1.0) var sign_min_gap_m: float = 12.0
+## Gap between the guard rail and the nearest edge of a sign (m).
+@export_range(0.0, 5.0, 0.1) var sign_rail_clearance_m: float = 0.8
 
 @export_group("Score")
 ## Points per metre of new road ridden (riding back over road after a respawn

@@ -7,6 +7,7 @@ extends Node3D
 enum Phase { COUNTDOWN, PLAY, FALLEN, FINISHED }
 
 const MPS_TO_KMH := 3.6
+const AMBIENCE_SOUND := "res://Assets/audio/490779__pietergrobler__nature-ambience.wav"
 
 ## Tests set these before adding the scene.
 var skip_countdown := false
@@ -56,6 +57,8 @@ var _rail_spark_t := 0.0
 var _on_rail := false
 ## The obstacle the bike just hit (so the crash handler can stop it).
 var _hit_obstacle: Obstacle = null
+## Looping nature ambience (0.13.0), quiet; see RoadTuning "Audio".
+var ambience: AudioStreamPlayer = null
 
 
 func _ready() -> void:
@@ -92,6 +95,7 @@ func _ready() -> void:
 	pause_menu = PauseMenu.new()
 	pause_menu.game = self
 	add_child(pause_menu)
+	_build_ambience()
 
 	_start_run()
 
@@ -412,6 +416,26 @@ func _update_hud() -> void:
 				"bound" if OscReceiver.bound else "NOT BOUND", OscReceiver.packets_per_s,
 				OscReceiver.last_address, str(OscReceiver.last_args),
 				RiderInput.pad_steer, RiderInput.pad_cadence, RiderInput.osc_steer, RiderInput.osc_cadence]
+
+
+## Nature ambience, looping quietly for the whole game scene (keeps going
+## through restarts, crashes and the pause menu).
+func _build_ambience() -> void:
+	var stream := load(AMBIENCE_SOUND) as AudioStream
+	if stream == null:
+		return
+	ambience = AudioStreamPlayer.new()
+	ambience.name = "Ambience"
+	ambience.stream = stream
+	ambience.process_mode = Node.PROCESS_MODE_ALWAYS
+	ambience.volume_db = -80.0
+	add_child(ambience)
+	ambience.finished.connect(ambience.play)  # loop
+	ambience.play()
+	var fade := create_tween()
+	fade.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	fade.set_ignore_time_scale(true)
+	fade.tween_property(ambience, "volume_db", road_tuning.ambience_volume_db, road_tuning.ambience_fade_in_s) 			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 
 
 func _build_environment() -> void:

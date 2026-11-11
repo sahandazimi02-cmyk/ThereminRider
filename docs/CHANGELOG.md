@@ -13,6 +13,97 @@ Format: newest first. Dates are YYYY-MM-DD.
 
 ### Verified
 - Headless import exit 0. Smoke test: same 2 failures as 0.9.0 and nothing new. Captured the UDP output with `nc`: valid OSC `/bike/speed ,f`. Max patch is valid JSON but not opened in Max.
+## 0.13.1: 2026-11-11, ambience as OGG (63 MB → 3.6 MB)
+
+### Changed
+- The nature ambience is now `Assets/audio/nature_ambience.ogg` (Ogg Vorbis, quality 5, ~132 kb/s, same 3:40 length, 48 kHz stereo), encoded from the 63 MB 24-bit WAV with ffmpeg. The WAV was removed from the project; it's still in git history (commit 38b0575) if you ever need it.
+- It now loops through Godot's OGG import (`loop=true` in its `.import`), which is gapless. The `finished` → `play()` restart in `Game._build_ambience()` stays as a fallback. KI-47 fixed.
+
+### Verified
+- Headless import exit 0, no errors. Smoke test: exit 1 with only the same 2 speed failures as 0.13.0; "nature ambience is loaded and playing" passes in all 5 game scenes the test opens. Not listened to.
+
+## 0.13.0: 2026-11-11, cow moo and nature ambience
+
+### Added
+- **Cows moo.** Each cow moos once, from where it stands (3D sound), when it starts crossing the road, so you hear it 2.5–5.5 s before you reach it. The pitch is picked at random per moo (±12 %) so cows don't all sound the same. Sound: your `Assets/audio/moo.wav`. Built in `Obstacle._build_cow()` (an `AudioStreamPlayer3D` named `Moo` on the cow node), played from `RoadWorld.update_movers()` (`Obstacle.moo()`); the pitch uses its own RNG so it never changes the generated road.
+- **Nature ambience.** `Assets/audio/490779__pietergrobler__nature-ambience.wav` loops quietly (−22 dB) for the whole game scene, fading in over 2 s. It keeps going through crashes, restarts and the pause menu, and stops when you go back to the main menu (`Game._build_ambience()`).
+- New `RoadTuning` fields: `cow_moo_volume_db`, `cow_moo_pitch_jitter`, `cow_moo_unit_m`, `cow_moo_max_m` (Cow group) and `ambience_volume_db`, `ambience_fade_in_s` (new Audio group). See TUNING.md.
+- `Assets/audio/credits.txt` lists where the two sounds come from.
+
+### Fixed
+- `moo.wav` didn't import: Godot printed `Format not supported for WAVE file (not PCM)`. The file was saved with a WAVE_FORMAT_EXTENSIBLE header, which Godot 4.7 rejects. Re-saved as plain 16-bit PCM (same audio, 48 kHz stereo, 3.08 s). The leftover `.import` file of the original download (`163727__felixblume__cow-mooing-…wav.import`, whose WAV is gone) was removed.
+
+### Verified
+- Headless import exit 0, no errors (after the moo re-save).
+- Smoke test: exit 1 with only the same 2 failures as before (`full steer at cruise`, `stays under 29 km/h`). They fail with the committed `bike_tuning.tres` too, so they're not from your local speed edits or from this change. New checks pass: cow has a moo sound, cow moos when it starts crossing, ambience loaded and playing in every game scene the test opens.
+- Not heard: the test runs headless (no audio output), so the volume balance, how far away the moo is audible, and the ambience loop point haven't been listened to.
+
+## 0.12.0: 2026-11-11, handlebar model (steering.glb) with a Classic switch
+
+### Added
+- **Handlebar model.** The bike now uses your `Assets/steering.glb` handlebar instead of the generated bar. It turns with the steering and the rider's hands hold its grips (found automatically from the top of the model, so the hands follow wherever the grips end up). Built in `BikeModel._build_handlebar_model()`; the fork, head tube and front wheel are still generated.
+  - The GLB doesn't fit the bike as-is: its stem is very tall (grips to dashboard ~1.1× the grip spacing) and a long steerer tube hangs below the dashboard. So the build turns it to face forward (`model_yaw_deg` 87.6), scales it to a 0.44 m grip width, shortens the vertical stem to 5 % (`model_stem_keep`), mounts the stem base 0.18 m below the head-tube top, and hides every triangle below 0.70 m (`model_cut_below`) so the steerer doesn't go through the front tyre. Result: a cruiser-style bar with the grips at 1.20 m (classic: 1.05 m).
+  - Its material is shiny chrome over a light-grey colour map, which mirrored the sky and grass in-game (the bar looked blue-green, then silver once the shine was turned down). It's now darkened (`model_tint` 0.22 grey) with half the metallic shine (`model_shine` 0.5), so it reads black like the model.
+  - All of these are Inspector fields on `BikeModel` (new "Handlebar model" group in `scenes/bike/bike_model.tscn`), and the model rebuilds live in the editor.
+- **Main menu: Handlebar: Model / Classic.** Switches between the GLB and the old generated bar. Saved with the other settings (`GameSession.handlebar_model`, default Model); `Bike` passes it to the model when the ride starts.
+- Smoke test `_test_handlebar`: both options build, both grips are within arm's reach and between head-tube and shoulder height, and the GLB has nothing drawn below the cut. Screenshots: new `first_person_classic.png`.
+
+### Verified
+- Headless import exit 0, no script errors.
+- Smoke test: exit 1 with only the same 2 failures as before (`full steer at cruise`, `stays under 29 km/h`, from the `bike_tuning.tres` speed). The new handlebar checks pass (model grips 0.45 m from the shoulder, 1.20 m high; lowest drawn point 0.64 m).
+- Looked at: `first_person.png`, `first_person_classic.png`, `third_person.png`, `hazards.png`, `crashed_get_up.png`, `main_menu.png`, plus side, 3/4 and steered first-person renders of the bike alone. Didn't look at the other screenshots.
+- Not played by a human.
+
+## 0.11.0: 2026-11-11, about twice as many cars, fullscreen option
+
+### Changed
+- **More cars, same amount of everything else** (`RoadTuning`). Playtest note: not enough cars, the other hazards are about right.
+  - Cars: `weight_car` 2.0 → 6.0, `weight_oncoming` 1.7 → 2.2. Most of the extra cars are parked ones: each oncoming car keeps 120 m of road free, so many more of them would crowd out everything else.
+  - Shorter gaps to make room: `obstacle_gap_easy_m` 80 → 53, `obstacle_gap_hard_m` 30 → 20. Hazards still keep `swap_gap_m` (18 m) of clear road for a lane change.
+  - The weights are shares of each pick, so the others moved a little to keep their count per km where it was: `weight_barrier` 2.2 → 2.5, `weight_cow` 2.4 → 2.7, `weight_pothole` 1.9 → 1.5 (more non-pothole hazards bring more paired potholes).
+  - Measured over 24 endless seeds, start to the end of the ramp + 2 km, per km (0.10.1 → 0.11.0): parked cars 2.4 → 7.4, oncoming 2.1 → 2.5 (cars 4.5 → 9.9), cones 3.7 → 3.9, barriers 2.8 → 2.8, potholes 4.7 → 4.7, cows 2.9 → 3.0.
+
+### Added
+- **Display: Windowed / Fullscreen** button on the main menu (`GameSession.fullscreen`, saved with the other settings). Fullscreen is borderless fullscreen. The saved choice is applied when the main menu opens (`GameSession.apply_window_mode()`), not at startup, so the test and screenshot scenes keep their window.
+
+### Verified
+- Headless import exit 0, no script errors.
+- Smoke test: exit 1 with only the same 2 failures as before (`full steer at cruise`, `stays under 29 km/h`, from the `bike_tuning.tres` speed). Spacing checks pass (tightest lane swap 18.0 m). Endless: 14 oncoming cars, 6 cows. Course bot: 2 crashes.
+- Main menu run windowed and looked at in a screenshot: the new button fits. Switching in code went to fullscreen (1920×1080) and back to the 1600×900 window, without saving.
+- Not played by a human. Didn't look at in-game screenshots of the extra cars.
+
+### Fixed (same day)
+- User: "the Fullscreen button doesn't work". Run from the editor, Godot embeds the game in its **Game** tab, and an embedded game can't change its window mode, so the button only changed its label. The button now reads **Display: Fullscreen (not in the editor's Game tab)** in that case (`Engine.is_embedded_in_editor()`). Outside the editor (or with embedding turned off) it works: a standalone run went 1600×900 → 1920×1080 fullscreen → 1600×900. Headless import exit 0; smoke test same 2 speed failures as above. The embedded case wasn't run here.
+
+## 0.10.1: 2026-11-11, fewer cars, more cows and other hazards
+
+### Changed
+- **Hazard mix rebalanced** (`RoadTuning` weights; `data/road_tuning.tres` doesn't override them). Playtest note: the number of cars was about right, but other hazards were rare, and only 1 cow showed up in a whole run.
+  - Cars down a little: `weight_car` 2.5 → 2.0, `weight_oncoming` 2.2 → 1.7. Cars are now about 28 % of hazard picks (was ~38 %). Each oncoming car also keeps 120 m of road free, so fewer of them leaves more room for other hazards.
+  - Cows up: `weight_cow` 1.0 → 2.4, about 18 % of picks (was ~8 %).
+  - Others up a little: `weight_cones` 3.0 → 3.2, `weight_barrier` 2.0 → 2.2, `weight_pothole` 1.5 → 1.9.
+
+### Verified
+- Headless import exit 0, no script errors.
+- Smoke test: exit 1 with only the same 2 failures as before (`full steer at cruise`, `stays under 29 km/h`, from the `bike_tuning.tres` speed). Endless to the end of the ramp: 13 cows (was 6) and 11 oncoming cars (was 11). 58 hazards in 3.45 km (was 42), because fewer oncoming cars block the road. Course bot: 2 crashes (truck, car). The course is hand-placed, so it hasn't changed.
+- Not played by a human. Didn't look at screenshots (nothing visual changed).
+
+## 0.10.0: 2026-11-11, roadside signs and hazard warning signs
+
+### Added
+- **Roadside signs** from your two exports in `Assets/` (new `scripts/world/road_signs.gd`). Each GLB has its signs as loose meshes; `RoadSigns` rebuilds each one at its post foot, facing the rider, scaled to a set height.
+  - **Ordinary signs** (`Roaad signs used random.glb`: two-way traffic, speed limit 55, chevron, detour, route 66, no bicycles, big arrow, one way, green motorway sign) on the right of the road, one every 160–380 m (`sign_spacing_min_m` / `_max_m`), so only now and then. The random file's ROAD WORK AHEAD and digging-worker signs are the same as two of the warnings, so they're never used at random (a warning sign always means a hazard). Signs with a right arrow (chevron, big arrow, detour, one way) only stand before a right bend, so no sign points the wrong way. Left bends get no arrow: a mirrored copy rendered dark.
+  - **Warning signs** (`Roaad signs hazards.glb`): `roadwork` before cones and barriers, `pothole` before potholes, `cow` before cow crossings, 40 m before the hazard (`hazard_sign_lead_m`). One sign covers a run of the same hazard: no second sign of the same kind within 90 m (`hazard_sign_repeat_m`). Parked and oncoming cars get no sign. Ordinary signs keep 30 m away from warning signs (`sign_hazard_clear_m`); a warning that would stand right next to another sign goes on the left side. Warning signs are bigger than ordinary ones (4.8 m vs 3.6 m tall) so you can read them in time. Endless and course.
+  - All signs stand outside the guard rail (`sign_rail_clearance_m`); they're scenery only, no collisions. They use a separate random generator, so the road and hazards for a given seed are unchanged.
+- New `RoadTuning` group **Road signs** (TUNING.md).
+- Smoke test `[road signs]` (endless to 3.4 km and the course): ordinary signs appear but only now and then, at least `sign_spacing_min_m` apart; every roadwork/pothole/cow hazard has its warning sign before it; ordinary signs keep clear of warnings; no sign reaches inside the rail; warning signs never appear as ordinary signs; arrow signs only before right bends; the models load.
+- Screenshots `sign_warning`, `sign_warning_first_person`, `sign_ordinary`, `sign_ordinary_first_person`.
+
+### Verified
+- Headless import exit 0, no script errors. It prints `Blender path is invalid` because of your `Assets/road signs.blend` (Godot tries to import .blend files; see KI-41).
+- Smoke test: exit 1 with only the same 2 failures as at 0.9.0 HEAD (`full steer at cruise`, `stays under 29 km/h`, from the `bike_tuning.tres` speed). All 16 new sign checks pass: endless 15 ordinary signs in 3.4 km (closest 167 m apart), 30 warning signs for 42 hazards; course 6 ordinary, 12 warnings for 18 hazards.
+- Looked at a render of every sign (front and back) to work out which way they face and which node is which, and at `sign_warning*` (ROAD WORK AHEAD ~24 m ahead, readable) and `sign_ordinary*`. Didn't look at the other screenshots. Haven't seen a pothole or cow warning sign in game, only in the render.
+- Not played by a human.
 
 ## 0.9.0: 2026-11-11, faster difficulty, more cars, faster cows, rail gaps, score
 

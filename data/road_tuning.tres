@@ -4,12 +4,14 @@
 
 [resource]
 script = ExtResource("1_script")
-lane_width_m = 2.5
+lane_width_m = 2.6
 rail_grace_s = 1.2
 endless_intro_m = 100.0
-straight_min_m = 30.0
+straight_min_m = 45.0
 straight_max_m = 115.0
 curve_len_min_m = 40.0
 curve_len_max_m = 160.0
 difficulty_ramp_m = 1800.0
 difficulty_curve = 1.0
+cow_length_m = 2.3
+cow_speed_mps = 2.15

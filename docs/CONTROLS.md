@@ -4,6 +4,8 @@
 
 Pick one on the main menu (**Controls: ...** button) or press **F2** anywhere. The choice is saved.
 
+The main menu's **Display** button switches between a window and fullscreen (saved). It can't go fullscreen while the game is embedded in the editor's **Game** tab (KI-44).
+
 | # | Profile | Steering | Pedalling |
 |---|---|---|---|
 | 1 | **Controller / keyboard** (default) | Left stick, or A / D / ← / → | Tap the pad's A button, or Space / W / ↑ |

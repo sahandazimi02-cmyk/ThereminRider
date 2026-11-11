@@ -1,4 +1,4 @@
-## Title screen: pick a mode, control profile, assist level and camera; shows live input status
+## Title screen: pick a mode, control profile, assist level, camera, handlebar and display; shows live input status
 ## so you can see Max/OSC is connected before riding.
 extends Control
 
@@ -6,6 +6,8 @@ var _profile_btn: Button
 var _profile_hint: Label
 var _assist_btn: Button
 var _camera_btn: Button
+var _display_btn: Button
+var _handlebar_btn: Button
 var _status: Label
 var _best: Label
 
@@ -36,6 +38,10 @@ func _ready() -> void:
 	col.add_child(_assist_btn)
 	_camera_btn = UiKit.button("", _on_camera)
 	col.add_child(_camera_btn)
+	_handlebar_btn = UiKit.button("", _on_handlebar)
+	col.add_child(_handlebar_btn)
+	_display_btn = UiKit.button("", _on_display)
+	col.add_child(_display_btn)
 	col.add_child(UiKit.button("Quit", _on_quit))
 	for c in col.get_children():
 		if c is Button:
@@ -49,6 +55,7 @@ func _ready() -> void:
 	_status = UiKit.label("", 18, HORIZONTAL_ALIGNMENT_CENTER)
 	col.add_child(_status)
 
+	GameSession.apply_window_mode()
 	_refresh_buttons()
 	endless.grab_focus()
 
@@ -76,6 +83,11 @@ func _refresh_buttons() -> void:
 	_profile_hint.text = UiKit.input_profile_hint()
 	_assist_btn.text = "Balance assist: %s" % GameSession.assist_name()
 	_camera_btn.text = "Camera: %s" % ("1st person" if GameSession.first_person else "3rd person")
+	_handlebar_btn.text = "Handlebar: %s" % ("Model" if GameSession.handlebar_model else "Classic")
+	_display_btn.text = "Display: %s" % ("Fullscreen" if GameSession.fullscreen else "Windowed")
+	# Inside the editor's Game tab the window can't change mode, so say why nothing happens.
+	if GameSession.fullscreen and Engine.is_embedded_in_editor():
+		_display_btn.text += " (not in the editor's Game tab)"
 
 
 func _on_endless() -> void:
@@ -106,6 +118,19 @@ func _on_assist() -> void:
 func _on_camera() -> void:
 	GameSession.first_person = not GameSession.first_person
 	GameSession.save()
+	_refresh_buttons()
+
+
+func _on_handlebar() -> void:
+	GameSession.handlebar_model = not GameSession.handlebar_model
+	GameSession.save()
+	_refresh_buttons()
+
+
+func _on_display() -> void:
+	GameSession.fullscreen = not GameSession.fullscreen
+	GameSession.save()
+	GameSession.apply_window_mode()
 	_refresh_buttons()
 
 

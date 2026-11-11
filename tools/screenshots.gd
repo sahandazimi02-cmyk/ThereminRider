@@ -51,6 +51,47 @@ func _run() -> void:
 	game.queue_free()
 	await get_tree().process_frame
 
+	# 0.8.0 moving hazards: a cow mid-crossing, an oncoming car and a parked truck.
+	game = _make_game(GameSession.Mode.ENDLESS)
+	game.cam.first_person = false
+	for _f in 60 * 4:
+		_bot(game, 90.0)
+		await get_tree().physics_frame
+	var rt := game.road_tuning
+	var lane := game.road.lane_of(game.bike_lat)
+	var cow := Obstacle.make(Obstacle.Kind.COW, game.bike_s + 12.0, 0.0, rt.lane_width_m)
+	game.road._setup_hazard(cow)
+	cow.lateral = game.road.lane_center(1 - lane) * 0.5
+	cow.active = true
+	cow.lead_s = 0.0
+	print("    cow walking %s" % ("right" if cow.end_lateral > cow.start_lateral else "left"))
+	var car := Obstacle.make(Obstacle.Kind.ONCOMING, game.bike_s + 24.0, game.road.lane_center(1 - lane), rt.lane_width_m)
+	game.road._setup_hazard(car)
+	car.speed = 0.0
+	car.active = true
+	var truck := Obstacle.make(Obstacle.Kind.CAR, game.bike_s + 38.0, game.road.lane_center(lane), rt.lane_width_m)
+	truck.set_vehicle(_first_long(), rt)
+	for o: Obstacle in [cow, car, truck]:
+		game.road.obstacles.append(o)
+	game.road.rebuild_chunks()  # so the rail gets its opening at the cow
+	for _f in 20:
+		RiderInput.override_cadence = 0.0
+		await get_tree().physics_frame
+	await _shot("hazards")
+	game.cam.first_person = true
+	for _f in 3:
+		await get_tree().physics_frame
+	await _shot("hazards_first_person")
+	cow.node.visible = false  # a clear look at the oncoming car and the parked truck
+	car.s = game.bike_s + 11.0
+	truck.s = game.bike_s + 20.0
+	game.road._place_node(car)
+	game.road._place_node(truck)
+	await get_tree().process_frame
+	await _shot("vehicles_first_person")
+	game.queue_free()
+	await get_tree().process_frame
+
 	# Course: look at the first pothole (s = 300 m) from just before it.
 	_bot_lane = 1
 	game = _make_game(GameSession.Mode.COURSE)
@@ -79,6 +120,13 @@ func _run() -> void:
 		await get_tree().process_frame
 	await _shot("main_menu")
 	get_tree().quit(0)
+
+
+func _first_long() -> int:
+	for i in VehiclePack.count():
+		if VehiclePack.is_long(i):
+			return i
+	return 0
 
 
 func _shot(name: String) -> void:

@@ -37,6 +37,9 @@ var streak_start_s := 0.0
 var best_streak := 0.0
 var elapsed := 0.0
 var crashes := 0
+## Points: score_per_m for each metre of new road, minus crash_penalty per
+## crash (never below 0). Shown top-left.
+var score := 0.0
 var reset_progress := 0.0
 var down_time := 0.0
 var crash_s := 0.0
@@ -51,6 +54,8 @@ var _slowmo_end_ms := 0
 var _prev_bike_state: Bike.State = Bike.State.FOOT_DOWN
 var _rail_spark_t := 0.0
 var _on_rail := false
+## The obstacle the bike just hit (so the crash handler can stop it).
+var _hit_obstacle: Obstacle = null
 
 
 func _ready() -> void:
@@ -102,6 +107,7 @@ func _start_run(countdown_s: float = -1.0) -> void:
 	distance = 0.0
 	elapsed = 0.0
 	crashes = 0
+	score = 0.0
 	best_streak = 0.0
 	new_record = false
 	rail_time = 0.0
@@ -156,15 +162,18 @@ func _physics_process(dt: float) -> void:
 			bike.step(dt, steer, cadence)
 			elapsed += dt
 			_track()
+			road.update_movers(dt, bike_s, bike.speed)
 			_check_collisions(dt)
 		Phase.FALLEN:
 			bike.step(dt, steer, cadence)
 			elapsed += dt if mode == GameSession.Mode.COURSE else 0.0
 			_track()
+			road.update_movers(dt, bike_s, bike.speed)
 			_update_get_up(dt)
 		Phase.FINISHED:
 			bike.step(dt, steer, cadence)
 			_track()
+			road.update_movers(dt, bike_s, bike.speed)
 	road.update_around(bike_s)
 	_update_ground()
 	_update_hud()
@@ -207,7 +216,10 @@ func _track() -> void:
 	var loc := road.path.locate(bike.position)
 	bike_s = loc.x
 	bike_lat = loc.y
-	distance = maxf(distance, bike_s - road.start_s())
+	var progress := bike_s - road.start_s()
+	if progress > distance and phase != Phase.FINISHED:
+		score += (progress - distance) * road_tuning.score_per_m
+	distance = maxf(distance, progress)
 	if bike.is_upright():
 		best_streak = maxf(best_streak, bike_s - streak_start_s)
 
@@ -225,13 +237,17 @@ func _check_collisions(dt: float) -> void:
 			if away == 0.0:
 				away = 1.0
 			var hit_pos := bike.position + bike.forward() * 0.6 + Vector3.UP * 0.5
-			if o.kind == Obstacle.Kind.CAR:
+			if o.kind == Obstacle.Kind.CAR or o.kind == Obstacle.Kind.ONCOMING:
 				CrashFx.burst(self, hit_pos, "spark", 30, 5.0, 0.04, 0.5, true)
 				CrashFx.burst(self, hit_pos + Vector3.UP * 0.3, "car_glass", 16, 4.0, 0.06, 1.0)
+			elif o.kind == Obstacle.Kind.COW:
+				CrashFx.dust(self, hit_pos, 16)
 			else:
 				CrashFx.burst(self, hit_pos, "cone" if o.kind == Obstacle.Kind.CONES else "barrier_red", 18, 4.5, 0.07, 1.0)
 			road.knock(o, push)
-			bike.crash("hit the " + o.kind_name(), away, bike.right() * away * 0.5)
+			_hit_obstacle = o
+			bike.crash("hit the " + o.display_name(), away, bike.right() * away * 0.5)
+			_hit_obstacle = null
 		else:
 			o.hit = true
 			bike.hit_pothole()
@@ -280,8 +296,12 @@ func _on_bike_crashed(reason: String) -> void:
 	if phase != Phase.PLAY:
 		return
 	crashes += 1
+	var lost := minf(score, road_tuning.crash_penalty)
+	score -= lost
+	hud.score_penalty(int(round(road_tuning.crash_penalty)))
 	crash_s = bike_s
 	crash_lat = bike_lat
+	road.on_bike_crash(bike_s, _hit_obstacle)
 	phase = Phase.FALLEN
 	down_time = 0.0
 	reset_progress = 0.0
@@ -350,8 +370,8 @@ func _finish() -> void:
 	phase = Phase.FINISHED
 	new_record = GameSession.submit_course(elapsed) if record_scores else false
 	var best := UiKit.format_time(GameSession.best_course_s)
-	hud.message("FINISH!", "Time %s    Crashes %d    Best %s%s" % [
-			UiKit.format_time(elapsed), crashes, best, "  NEW RECORD!" if new_record else ""])
+	hud.message("FINISH!", "Time %s    Crashes %d    Score %d    Best %s%s" % [
+			UiKit.format_time(elapsed), crashes, int(score), best, "  NEW RECORD!" if new_record else ""])
 	pause_menu.open_results()
 
 
@@ -372,6 +392,7 @@ func _update_hud() -> void:
 	hud.speed_label.text = "%d km/h" % int(round(kmh))
 	hud.speedometer.speed_kmh = kmh
 	hud.speedometer.max_kmh = bike_tuning.max_speed_kmh
+	hud.set_score(int(score))
 	hud.set_profile(RiderInput.profile_name(), _input_warning())
 
 	var g := hud.gauges

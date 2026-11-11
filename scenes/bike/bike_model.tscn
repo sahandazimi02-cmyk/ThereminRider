@@ -1,13 +1,12 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://c26muitbl2fgo"]
 
-[ext_resource type="Script" path="res://scripts/bike/bike_model.gd" id="1_model"]
+[ext_resource type="Script" uid="uid://drb2ybj5dvta7" path="res://scripts/bike/bike_model.gd" id="1_model"]
 
-[node name="BikeModel" type="Node3D" node_paths=PackedStringArray("first_person_camera")]
+[node name="BikeModel" type="Node3D" unique_id=2016046873 node_paths=PackedStringArray("first_person_camera")]
 script = ExtResource("1_model")
 first_person_camera = NodePath("FirstPersonCamera")
 
-[node name="FirstPersonCamera" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.9135455, 0.4067366, 0, -0.4067366, 0.9135455, 0, 1.56, 0.04)
-near = 0.05
-far = 900.0
+[node name="FirstPersonCamera" type="Camera3D" parent="." unique_id=2143203443]
+transform = Transform3D(1, 0, 0, 0, 0.9135455, 0.4067366, 0, -0.4067366, 0.9135455, 0, 1.5384581, 0.057701625)
 fov = 80.0
+far = 900.0

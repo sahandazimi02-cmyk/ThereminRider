@@ -9,8 +9,42 @@
             "modernui": 1
         },
         "classnamespace": "box",
-        "rect": [ 34.0, 77.0, 1452.0, 921.0 ],
+        "rect": [ 134.0, 134.0, 1452.0, 921.0 ],
         "boxes": [
+            {
+                "box": {
+                    "id": "obj-149",
+                    "maxclass": "newobj",
+                    "numinlets": 1,
+                    "numoutlets": 3,
+                    "outlettype": [ "", "", "" ],
+                    "patching_rect": [ 213.0, 524.0, 40.0, 22.0 ],
+                    "restore": [ 45.0 ],
+                    "saved_object_attributes": {
+                        "parameter_enable": 0,
+                        "parameter_mappable": 0
+                    },
+                    "text": "pattr",
+                    "varname": "u408000406[1]"
+                }
+            },
+            {
+                "box": {
+                    "id": "obj-148",
+                    "maxclass": "newobj",
+                    "numinlets": 1,
+                    "numoutlets": 3,
+                    "outlettype": [ "", "", "" ],
+                    "patching_rect": [ 266.5, 526.0, 40.0, 22.0 ],
+                    "restore": [ 70.0 ],
+                    "saved_object_attributes": {
+                        "parameter_enable": 0,
+                        "parameter_mappable": 0
+                    },
+                    "text": "pattr",
+                    "varname": "u408000406"
+                }
+            },
             {
                 "box": {
                     "fontface": 1,
@@ -32,7 +66,6 @@
                     "numinlets": 1,
                     "numoutlets": 0,
                     "patching_rect": [ 1284.0, 176.0, 227.0, 34.0 ],
-                    "presentation_linecount": 2,
                     "text": "Reads the 'p' the Arduino sends once per\npedal turn over USB. Sends: tr.pulse"
                 }
             },
@@ -46,7 +79,6 @@
                     "numinlets": 1,
                     "numoutlets": 0,
                     "patching_rect": [ 1284.0, 226.0, 250.0, 34.0 ],
-                    "presentation_linecount": 2,
                     "text": "1) PORT: plug the Arduino in, click 'list\nports', then pick its COM port in the menu."
                 }
             },
@@ -64,7 +96,7 @@
             {
                 "box": {
                     "id": "obj-166",
-                    "items": [ "COM3", ",", "COM6", ",", "COM5", ",", "COM4", ",", "COM7" ],
+                    "items": "COM7",
                     "maxclass": "umenu",
                     "numinlets": 1,
                     "numoutlets": 3,
@@ -379,8 +411,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 1284.0, 734.0, 229.0, 48.0 ],
-                    "presentation_linecount": 3,
+                    "patching_rect": [ 1284.0, 734.0, 245.0, 48.0 ],
                     "text": "Opens COM7 (the Arduino on this PC) when\nthe patch opens. Other bytes (newlines) are\nignored. A 'port z' error at load is harmless."
                 }
             },
@@ -421,7 +452,8 @@
                     "numoutlets": 2,
                     "outlettype": [ "", "bang" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 262.0, 580.0, 50.0, 22.0 ]
+                    "patching_rect": [ 277.0, 554.0, 50.0, 22.0 ],
+                    "varname": "number"
                 }
             },
             {
@@ -433,7 +465,8 @@
                     "numoutlets": 2,
                     "outlettype": [ "", "bang" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 194.0, 587.0, 50.0, 22.0 ]
+                    "patching_rect": [ 213.0, 562.0, 50.0, 22.0 ],
+                    "varname": "number[1]"
                 }
             },
             {
@@ -480,7 +513,7 @@
                     "numoutlets": 2,
                     "outlettype": [ "", "bang" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 228.0, 541.0, 50.0, 22.0 ]
+                    "patching_rect": [ 146.0, 562.0, 50.0, 22.0 ]
                 }
             },
             {
@@ -1686,7 +1719,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 1603.0, 176.0, 271.0, 34.0 ],
+                    "patching_rect": [ 1603.0, 176.0, 295.0, 34.0 ],
                     "text": "Sends /bike/cadence (RPM). Turn ON to use the bike.\nWhile OFF the game uses the controller A button."
                 }
             },
@@ -2392,6 +2425,18 @@
             },
             {
                 "patchline": {
+                    "destination": [ "obj-158", 0 ],
+                    "source": [ "obj-148", 1 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-157", 0 ],
+                    "source": [ "obj-149", 1 ]
+                }
+            },
+            {
+                "patchline": {
                     "destination": [ "obj-151", 0 ],
                     "order": 1,
                     "source": [ "obj-150", 0 ]
@@ -2516,7 +2561,15 @@
             },
             {
                 "patchline": {
+                    "destination": [ "obj-173", 0 ],
+                    "order": 1,
+                    "source": [ "obj-179", 0 ]
+                }
+            },
+            {
+                "patchline": {
                     "destination": [ "obj-180", 0 ],
+                    "order": 0,
                     "source": [ "obj-179", 0 ]
                 }
             },
@@ -2580,6 +2633,12 @@
                 "patchline": {
                     "destination": [ "obj-166", 0 ],
                     "source": [ "obj-191", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-113", 0 ],
+                    "source": [ "obj-196", 0 ]
                 }
             },
             {
@@ -2890,18 +2949,6 @@
                 "patchline": {
                     "destination": [ "obj-100", 0 ],
                     "source": [ "obj-99", 0 ]
-                }
-            },
-            {
-                "patchline": {
-                    "destination": [ "obj-173", 0 ],
-                    "source": [ "obj-179", 0 ]
-                }
-            },
-            {
-                "patchline": {
-                    "destination": [ "obj-113", 0 ],
-                    "source": [ "obj-196", 0 ]
                 }
             }
         ],

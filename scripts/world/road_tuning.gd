@@ -59,15 +59,16 @@ const PATH := "res://data/road_tuning.tres"
 
 @export_group("Obstacles")
 ## Gap between obstacles at the start of endless mode.
-@export_range(10.0, 300.0, 1.0) var obstacle_gap_easy_m: float = 100.0
-## Gap between obstacles at max difficulty.
-@export_range(5.0, 200.0, 1.0) var obstacle_gap_hard_m: float = 35.0
+## 0.9.0: 100 -> 80.
+@export_range(10.0, 300.0, 1.0) var obstacle_gap_easy_m: float = 80.0
+## Gap between obstacles at max difficulty. 0.9.0: 35 -> 30.
+@export_range(5.0, 200.0, 1.0) var obstacle_gap_hard_m: float = 30.0
 ## Random +/- spread on each gap (fraction).
 @export_range(0.0, 0.9, 0.01) var obstacle_gap_jitter: float = 0.35
-## Relative chance of each obstacle type.
+## Relative chance of each obstacle type. 0.9.0: parked cars 1.5 -> 2.5.
 @export_range(0.0, 10.0, 0.1) var weight_cones: float = 3.0
 @export_range(0.0, 10.0, 0.1) var weight_barrier: float = 2.0
-@export_range(0.0, 10.0, 0.1) var weight_car: float = 1.5
+@export_range(0.0, 10.0, 0.1) var weight_car: float = 2.5
 @export_range(0.0, 10.0, 0.1) var weight_pothole: float = 1.5
 ## Free road between two hazards in opposite lanes (back of one to front of
 ## the next, m), so there's always room to pass one and swap lanes before the
@@ -83,6 +84,61 @@ const PATH := "res://data/road_tuning.tres"
 @export_range(0.0, 1.0, 0.01) var paired_pothole_chance: float = 0.35
 ## Extra random distance after swap_gap_m before the paired pothole (m).
 @export_range(0.0, 30.0, 0.5) var paired_pothole_spread_m: float = 6.0
+
+@export_group("Vehicles (car pack)")
+## Parked cars and oncoming cars use the low-poly car pack in
+## res://Assets/10-lowpoly-cars. Every vehicle is scaled to this overall width
+## (mirrors included). Collision box = this width x the vehicle's length.
+@export_range(1.2, 2.6, 0.05) var vehicle_width_m: float = 2.0
+## Trucks and the bus are stretched to this length (wheels keep their shape).
+@export_range(4.0, 16.0, 0.25) var truck_length_m: float = 9.5
+## Chance that a car hazard (parked or oncoming) is a truck / bus.
+@export_range(0.0, 1.0, 0.01) var truck_chance: float = 0.3
+## Fraction of the model's width that counts for collisions (mirrors stick out).
+@export_range(0.5, 1.0, 0.01) var vehicle_hit_width: float = 0.85
+
+@export_group("Oncoming cars")
+## Relative chance of an oncoming car (same scale as the weights above).
+## 0.9.0: 1.4 -> 2.2.
+@export_range(0.0, 10.0, 0.1) var weight_oncoming: float = 2.2
+## Oncoming cars only appear from this endless difficulty on (0 = right after the intro).
+@export_range(0.0, 1.0, 0.01) var oncoming_from: float = 0.0
+## The car appears this far ahead of the bike and starts driving towards it.
+## Its whole lane is kept free of other hazards over this stretch, and the other
+## lane too (so there's always somewhere to go).
+@export_range(40.0, 300.0, 5.0) var oncoming_trigger_m: float = 120.0
+## Driving speed at the start and at max difficulty (m/s).
+@export_range(1.0, 30.0, 0.5) var oncoming_speed_easy_mps: float = 7.0
+@export_range(1.0, 40.0, 0.5) var oncoming_speed_hard_mps: float = 12.0
+
+@export_group("Cow")
+## Relative chance of a cow crossing the road.
+@export_range(0.0, 10.0, 0.1) var weight_cow: float = 1.0
+## Cows only appear from this endless difficulty on.
+@export_range(0.0, 1.0, 0.01) var cow_from: float = 0.0
+## The cow waits beside the road, this far outside the rail.
+@export_range(0.0, 6.0, 0.1) var cow_side_m: float = 1.5
+## Cow length (the model is scaled to it).
+@export_range(1.5, 4.0, 0.05) var cow_length_m: float = 2.4
+## Walking speed across the road (m/s), and how fast the walk animation plays
+## (1 = as authored). 0.9.0: 1.3 -> 1.9 m/s, animation 1.0 -> 1.45 to match.
+@export_range(0.3, 5.0, 0.05) var cow_speed_mps: float = 1.9
+@export_range(0.2, 3.0, 0.05) var cow_anim_speed: float = 1.45
+## The guard rail (and its posts) has an opening this long where a cow
+## crosses, so it walks through a gap instead of through the fence (m).
+@export_range(0.0, 20.0, 0.5) var cow_rail_gap_m: float = 7.0
+## The cow starts walking when the bike is this many seconds away (at its
+## current speed). Picked at random per cow between min and max, so it's
+## somewhere different on the road each time you reach it.
+@export_range(0.5, 15.0, 0.1) var cow_lead_min_s: float = 2.5
+@export_range(0.5, 15.0, 0.1) var cow_lead_max_s: float = 5.5
+
+@export_group("Score")
+## Points per metre of new road ridden (riding back over road after a respawn
+## doesn't count twice).
+@export_range(0.0, 10.0, 0.05) var score_per_m: float = 1.0
+## Points lost for each crash (the score never drops below 0).
+@export_range(0.0, 2000.0, 5.0) var crash_penalty: float = 100.0
 
 @export_group("Crash & reset")
 ## After a crash, the bike must lie still this long before pedalling can get

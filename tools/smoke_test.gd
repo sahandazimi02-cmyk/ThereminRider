@@ -32,6 +32,7 @@ func _run() -> void:
 	_test_cadence()
 	_test_road()
 	_test_spacing()
+	await _test_movers()
 	_test_fall_times()
 	_test_pothole()
 	await _test_crash_fx()
@@ -160,16 +161,20 @@ func _test_spacing() -> void:
 	var worst_same := INF
 	var paired := 0
 	var seen := {}
+	var movers := {}
 	var end_s := t.start_straight_m + t.endless_intro_m + t.difficulty_ramp_m + 2000.0
 	var s := 0.0
 	while s < end_s:
 		w.update_around(s)
+		for o in w.obstacles:
+			if o.is_mover():
+				movers[o.get_instance_id()] = o.kind
 		for i in w.obstacles.size():
 			var a := w.obstacles[i]
 			for j in range(i + 1, w.obstacles.size()):
 				var b := w.obstacles[j]
 				var gap := RoadWorld.clear_gap(a, b)
-				if w.lane_of(a.lateral) != w.lane_of(b.lateral):
+				if w.needed_gap(a, b) > t.same_lane_gap_m:
 					worst_swap = minf(worst_swap, gap)
 					var key := "%d:%d" % [a.get_instance_id(), b.get_instance_id()]
 					if not seen.has(key) and gap < t.swap_gap_m + t.paired_pothole_spread_m + 1.0 							and (a.kind == Obstacle.Kind.POTHOLE) != (b.kind == Obstacle.Kind.POTHOLE):
@@ -182,6 +187,10 @@ func _test_spacing() -> void:
 	_check(worst_swap >= t.swap_gap_m - 0.01, "endless: opposite-lane hazards >= swap_gap_m apart (%.1f m)" % worst_swap)
 	_check(worst_same >= t.same_lane_gap_m - 0.01, "endless: same-lane hazards don't overlap (%.1f m)" % worst_same)
 	_check(paired > 0, "endless: paired potholes still appear at high difficulty (%d)" % paired)
+	var n_oncoming := movers.values().count(Obstacle.Kind.ONCOMING)
+	var n_cows := movers.values().count(Obstacle.Kind.COW)
+	print("    moving hazards: %d oncoming cars, %d cows" % [n_oncoming, n_cows])
+	_check(n_oncoming > 0 and n_cows > 0, "endless: oncoming cars and cows appear")
 	w.queue_free()
 
 	var course := RoadWorld.new()
@@ -192,7 +201,7 @@ func _test_spacing() -> void:
 		for j in range(i + 1, course.obstacles.size()):
 			var a := course.obstacles[i]
 			var b := course.obstacles[j]
-			if course.lane_of(a.lateral) != course.lane_of(b.lateral):
+			if course.needed_gap(a, b) > t.same_lane_gap_m:
 				worst_course = minf(worst_course, RoadWorld.clear_gap(a, b))
 	_check(worst_course >= t.swap_gap_m - 0.01, "course: opposite-lane hazards >= swap_gap_m apart (%.1f m)" % worst_course)
 	course.queue_free()
@@ -294,7 +303,11 @@ func _test_crash_fx() -> void:
 	# Watch the whole tumble: no automatic get-up during this check.
 	var auto_get_up := game.road_tuning.auto_get_up_s
 	game.road_tuning.auto_get_up_s = 0.0
+	var score_before := game.score
+	var expect_score := maxf(0.0, score_before - game.road_tuning.crash_penalty)
+	_check(score_before > 0.0 and game.hud.score_label.text == "SCORE %d" % int(score_before), "riding scores points, shown top-left (%d)" % int(score_before))
 	game.bike.crash("test hit", 1.0, game.bike.right())
+	_check(is_equal_approx(game.score, expect_score), "a crash costs crash_penalty points (%d -> %d)" % [int(score_before), int(game.score)])
 	_check(model.thrown and game.bike.impact, "hard hit throws the rider off")
 	var peak := start.y
 	for _f in 60 * 3:
@@ -343,7 +356,7 @@ func _test_crash_fx() -> void:
 	game.restart()
 	var t := game.road_tuning
 	_check(game.phase == Game.Phase.COUNTDOWN and is_equal_approx(game.bike_s, game.road.start_s()) \
-			and game.distance == 0.0 and game.crashes == 0, "restart puts the bike back on the start line")
+			and game.distance == 0.0 and game.crashes == 0 and game.score == 0.0, "restart puts the bike back on the start line (score 0)")
 	var to_go := 0.0
 	while game.phase == Game.Phase.COUNTDOWN and to_go < 10.0:
 		await get_tree().physics_frame
@@ -430,7 +443,7 @@ func _bot(game: Game, cadence: float) -> void:
 	# Pick a lane with nothing in it for the next 60 m.
 	var blocked := func(lane: int) -> bool:
 		for o in road.obstacles:
-			if o.s > game.bike_s - 1.0 and o.s < game.bike_s + 60.0 and road.lane_of(o.lateral) == lane:
+			if _bot_blocks(game, o, lane):
 				return true
 		return false
 	if blocked.call(_bot_lane) and not blocked.call(1 - _bot_lane):
@@ -483,6 +496,117 @@ func _bot(game: Game, cadence: float) -> void:
 				Engine.get_physics_frames() / 60.0, bike.state_name(), bike.speed, rad_to_deg(bike.lean),
 				rad_to_deg(lean_des), rad_to_deg(bike.lean_eq), bike.stability_k, w, game.bike_s, game.bike_lat,
 				RiderInput.override_steer])
+
+
+## Does obstacle o block `lane` for the bot? Oncoming cars are looked for
+## further ahead; for a cow, where it will be when the bike gets there.
+func _bot_blocks(game: Game, o: Obstacle, lane: int) -> bool:
+	var road := game.road
+	var ahead := o.s - game.bike_s
+	match o.kind:
+		Obstacle.Kind.ONCOMING:
+			return ahead > -1.0 - o.half_along and ahead < 100.0 and road.lane_of(o.lateral) == lane
+		Obstacle.Kind.COW:
+			if ahead < -1.0 or ahead > 60.0:
+				return false
+			var t := ahead / maxf(game.bike.speed, 1.0)
+			var walk := 0.0
+			if not o.stopped:
+				walk = t if o.active else minf(t, o.lead_s)
+			var lat := move_toward(o.lateral, o.end_lateral, o.speed * walk)
+			var lo := -road.tuning.lane_width_m if lane == 0 else 0.0
+			var hi := 0.0 if lane == 0 else road.tuning.lane_width_m
+			return lat + o.half_lateral + 0.5 > lo and lat - o.half_lateral - 0.5 < hi
+	return ahead > -1.0 - o.half_along and ahead < 60.0 + o.half_along and road.lane_of(o.lateral) == lane
+
+
+## 0.8.0: car pack models, oncoming cars that drive at you, cows that cross.
+func _test_movers() -> void:
+	print("[moving hazards]")
+	var t := RoadTuning.load_default()
+	_check(VehiclePack.count() == 10, "car pack splits into 10 vehicles (%d)" % VehiclePack.count())
+	var longest := 0.0
+	var shortest := INF
+	for i in VehiclePack.count():
+		var size := VehiclePack.size_of(i, t)
+		if VehiclePack.is_long(i):
+			longest = maxf(longest, size.y)
+		else:
+			shortest = minf(shortest, size.y)
+	print("    cars from %.1f m long, trucks %.1f m" % [shortest, longest])
+	_check(absf(longest - t.truck_length_m) < 0.05 and shortest < longest * 0.6, "trucks are stretched to truck_length_m, much longer than cars")
+
+	var w := RoadWorld.new()
+	w.setup(t, false, 1)
+	add_child(w)
+	w.obstacles.clear()
+	var car := Obstacle.make(Obstacle.Kind.ONCOMING, 400.0, w.lane_center(1), t.lane_width_m)
+	w._setup_hazard(car)
+	w.obstacles.append(car)
+	_check(car.variant >= 0 and car.half_along > 1.5, "oncoming car uses a car pack model (half length %.1f m)" % car.half_along)
+	w.update_movers(0.1, 400.0 - t.oncoming_trigger_m - 20.0, 7.0)
+	_check(not car.active and is_equal_approx(car.s, 400.0), "oncoming car waits until the bike is within oncoming_trigger_m")
+	w.update_around(400.0 - t.oncoming_trigger_m - 20.0)
+	_check(car.node == null, "oncoming car isn't shown before it starts driving")
+	w.update_movers(0.5, 400.0 - t.oncoming_trigger_m + 5.0, 7.0)
+	_check(car.active and car.s < 400.0, "oncoming car drives towards the bike (s %.1f)" % car.s)
+	w.update_around(400.0 - t.oncoming_trigger_m + 5.0)
+	_check(car.node != null and car.node.get_child_count() > 0, "oncoming car node built once it drives")
+
+	var cow := Obstacle.make(Obstacle.Kind.COW, 520.0, 0.0, t.lane_width_m)
+	w._setup_hazard(cow)
+	w.obstacles.append(cow)
+	var start_lat := cow.lateral
+	_check(absf(start_lat) > w.rail_offset(), "cow waits beside the road, outside the rail (%.1f m)" % start_lat)
+	var gaps := w._rail_gaps(int(500.0 / w.path.step), int(560.0 / w.path.step))
+	_check(gaps.size() == 1 and RoadWorld._in_gap(520.0, gaps) and not RoadWorld._in_gap(520.0 + t.cow_rail_gap_m, gaps),
+			"guard rail has an opening where the cow crosses (%s)" % [gaps])
+	w.update_around(470.0)
+	_check(cow.node != null and cow.anim != null, "cow model with an AnimationPlayer")
+	if cow.anim != null:
+		_check(cow.anim.has_animation(Obstacle.COW_WALK_ANIM), "cow has the '%s' animation" % Obstacle.COW_WALK_ANIM)
+	w.update_movers(1.0 / 60.0, 520.0 - 7.0 * (cow.lead_s + 2.0), 7.0)
+	_check(not cow.active, "cow waits until the bike is lead_s away")
+	w.update_movers(1.0 / 60.0, 520.0 - 7.0 * (cow.lead_s - 0.5), 7.0)
+	_check(cow.active, "cow starts walking when the bike is lead_s away")
+	if cow.anim != null:
+		_check(cow.anim.current_animation == Obstacle.COW_WALK_ANIM, "cow plays its walk animation while crossing")
+	var crossed_mid := false
+	for _i in 60 * 20:
+		w.update_movers(1.0 / 60.0, 470.0, 7.0)
+		crossed_mid = crossed_mid or absf(cow.lateral) < 0.2
+	_check(crossed_mid and cow.stopped and signf(cow.lateral) == -signf(start_lat), "cow crosses the whole road and stops on the far side")
+	w.reset_obstacles()
+	_check(is_equal_approx(car.s, 400.0) and not car.active and is_equal_approx(cow.lateral, start_lat) and not cow.stopped, "restart puts oncoming cars and cows back")
+	w.queue_free()
+
+	# In a real ride: an oncoming car right in front of the bike crashes it and
+	# then stays stopped.
+	RiderInput.override_enabled = true
+	var game := _make_game(GameSession.Mode.ENDLESS)
+	for _f in 60 * 5:
+		_bot(game, 90.0)
+		await get_tree().physics_frame
+	var hit := Obstacle.make(Obstacle.Kind.ONCOMING, game.bike_s + 10.0, game.bike_lat, t.lane_width_m)
+	game.road._setup_hazard(hit)
+	hit.active = true
+	game.road.obstacles.append(hit)
+	var reason := ""
+	for _f in 60 * 4:
+		RiderInput.override_cadence = 90.0
+		_bot(game, 90.0)
+		await get_tree().physics_frame
+		if game.phase == Game.Phase.FALLEN:
+			reason = game.bike.last_crash_reason
+			break
+	_check(reason.contains("oncoming"), "riding into an oncoming car crashes you (%s)" % reason)
+	var s_after := hit.s
+	for _f in 30:
+		await get_tree().physics_frame
+	_check(hit.stopped and is_equal_approx(hit.s, s_after), "the car stops after the crash")
+	game.queue_free()
+	RiderInput.override_enabled = false
+	await get_tree().process_frame
 
 
 func _test_endless() -> void:

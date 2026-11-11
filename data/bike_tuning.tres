@@ -1,6 +1,9 @@
-[gd_resource type="Resource" script_class="BikeTuning" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="BikeTuning" format=3 uid="uid://knxpkcbw60o3"]
 
-[ext_resource type="Script" path="res://scripts/bike/bike_tuning.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://1ebg8x0dh2f6" path="res://scripts/bike/bike_tuning.gd" id="1_script"]
 
 [resource]
 script = ExtResource("1_script")
+speed_per_rpm = 0.16
+max_speed_kmh = 73.5
+max_accel = 5.0

@@ -6,7 +6,33 @@ Every gameplay number lives in one of three Resources. Edit them in the Godot In
 |---|---|---|
 | `data/bike_tuning.tres` | `scripts/bike/bike_tuning.gd` | Bike geometry, pedalling → speed, steering, balance, crashing, crash effects (visual only) |
 | `data/input_tuning.tres` | `scripts/input/input_tuning.gd` | OSC port/addresses, theremin smoothing/deadzone/invert, pedal-stroke → RPM |
-| `data/road_tuning.tres` | `scripts/world/road_tuning.gd` | Lane width, rails, endless generator, obstacles and hazard spacing (`swap_gap_m`, `same_lane_gap_m`, paired potholes), get-up rules, cameras, crash camera and shake |
+| `data/road_tuning.tres` | `scripts/world/road_tuning.gd` | Lane width, rails, endless generator, obstacles and hazard spacing (`swap_gap_m`, `same_lane_gap_m`, paired potholes), car pack vehicles, oncoming cars, cows, get-up rules, cameras, crash camera and shake |
+
+### Moving hazards and vehicles (0.8.0, `road_tuning`)
+
+| Knob | Default | What it does |
+|---|---|---|
+| `vehicle_width_m` | 2.0 | Every car pack vehicle is scaled to this width (mirrors included) |
+| `truck_length_m` | 9.5 | Trucks and the bus are stretched to this length (wheels stay round) |
+| `truck_chance` | 0.3 | Share of car hazards (parked and oncoming) that are trucks/buses |
+| `vehicle_hit_width` | 0.85 | Share of the model's width that counts for hits |
+| `weight_car` | 2.5 | How often parked cars/trucks come (0.9.0: 1.5 → 2.5; cones 3, barrier 2, pothole 1.5) |
+| `weight_oncoming` / `oncoming_from` | 2.2 / 0 | How often oncoming cars come, and from which difficulty |
+| `oncoming_trigger_m` | 120 | The car appears this far ahead and drives at you. Also the stretch of road kept free for it |
+| `oncoming_speed_easy_mps` / `_hard_mps` | 7 / 12 | Its speed at difficulty 0 / 1 |
+| `weight_cow` / `cow_from` | 1.0 / 0 | How often cows come, and from which difficulty |
+| `cow_side_m` | 1.5 | Where it waits, outside the rail |
+| `cow_length_m` | 2.4 | Model size (and hit box) |
+| `cow_speed_mps` / `cow_anim_speed` | 1.9 / 1.45 | Walking speed across the road / walk animation speed |
+| `cow_lead_min_s` / `cow_lead_max_s` | 2.5 / 5.5 | It starts walking when you're this many seconds away; lower = it's nearer its start side when you arrive |
+| `cow_rail_gap_m` | 7 | Length of the opening in the guard rail (both sides) where a cow crosses; 0 = no opening |
+
+### Score (0.9.0, `road_tuning`)
+
+| Knob | Default | What it does |
+|---|---|---|
+| `score_per_m` | 1.0 | Points per metre of new road (riding back over road after a respawn doesn't count again) |
+| `crash_penalty` | 100 | Points lost per crash; the score never goes below 0 |
 
 ## Bike model and first-person camera (`scenes/bike/bike_model.tscn`)
 
@@ -74,6 +100,10 @@ The bike is simulated directly rather than with Godot's physics engine; that's s
 | Endless too hard too soon | `road.endless_intro_m` ↑ (straight warm-up), `road.difficulty_ramp_m` ↑, `road.difficulty_curve` ↑, `road.obstacle_gap_hard_m` ↑ |
 | Potholes too harsh / too soft | `bike.pothole_kick`, `bike.pothole_stability_loss`, `bike.pothole_shaky_s` (how long it lasts), `bike.shake_pothole` (camera), `bike.pothole_jitter` |
 | Not enough room to swap lanes between hazards | `road.swap_gap_m` ↑ (18 m of clear road between hazards in opposite lanes; it's a distance, so at higher speed it's less time) |
+| Oncoming cars too sudden / too easy | `road.oncoming_trigger_m` ↑ (more warning), `road.oncoming_speed_*_mps` ↓/↑, `road.weight_oncoming` |
+| Cow too hard to get past | `road.cow_speed_mps` ↑ (gets out of the way sooner), `road.cow_lead_*_s`, `road.cow_length_m` ↓, `road.weight_cow` |
+| Trucks too long / short | `road.truck_length_m`, `road.truck_chance` |
+| Difficulty climbs too fast / slow | `road.difficulty_ramp_m` (1800 m since 0.9.0), `road.difficulty_curve` (1.0 = linear), `road.obstacle_gap_easy_m` (80) / `_hard_m` (30) |
 | Course start too hard | `CourseData.SEGMENTS` / `OBSTACLES` in `course_data.gd` (plain data) |
 
 ## Regression check after tuning

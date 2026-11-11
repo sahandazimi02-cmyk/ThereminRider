@@ -1,6 +1,15 @@
-[gd_resource type="Resource" script_class="RoadTuning" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="RoadTuning" format=3 uid="uid://d6174eiek1cp"]
 
-[ext_resource type="Script" path="res://scripts/world/road_tuning.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://c83gvbcf0bm5j" path="res://scripts/world/road_tuning.gd" id="1_script"]
 
 [resource]
 script = ExtResource("1_script")
+lane_width_m = 2.5
+rail_grace_s = 1.2
+endless_intro_m = 100.0
+straight_min_m = 30.0
+straight_max_m = 115.0
+curve_len_min_m = 40.0
+curve_len_max_m = 160.0
+difficulty_ramp_m = 1800.0
+difficulty_curve = 1.0

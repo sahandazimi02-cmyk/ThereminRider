@@ -2,6 +2,45 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.9.0: 2026-11-11, faster difficulty, more cars, faster cows, rail gaps, score
+
+### Added
+- **Score counter, top-left** (`SCORE 1234`). You get `road.score_per_m` (1) point per metre of new road; each crash costs `road.crash_penalty` (100) points, with a red "-100" dropping in under the score. The score never goes below 0, and riding back over road after a respawn doesn't score twice. Restart resets it. The Course finish message shows it too. Not saved anywhere (best streak / course time are still what's recorded). The profile name and device warning moved down under the score.
+- **Openings in the guard rail where cows cross** (`road.cow_rail_gap_m`, 7 m, both sides, with a post at each end). The cow walks through the gap instead of through the fence (was KI-35).
+- New `RoadTuning` group **Score** (`score_per_m`, `crash_penalty`) and `cow_rail_gap_m` (TUNING.md).
+- Smoke test: riding scores points and the HUD shows them; a crash costs `crash_penalty`; restart resets the score; the rail has an opening at a cow crossing.
+
+### Changed
+- **Difficulty ramps up faster** (`data/road_tuning.tres`): `difficulty_ramp_m` 3000 → 1800 m and `difficulty_curve` 1.15 → 1.0 (linear), so max difficulty comes 1.8 km after the intro instead of 3 km, and it climbs from the first metre. Obstacles are also closer together: `obstacle_gap_easy_m` 100 → 80, `obstacle_gap_hard_m` 35 → 30.
+- **More cars, from the start**: `weight_car` (parked cars/trucks) 1.5 → 2.5 and `weight_oncoming` 1.4 → 2.2. Both are in the pool right after the intro (`oncoming_from` 0), so cars are now about 45 % of hazards (was ~30 %).
+- **Cows walk faster**: `cow_speed_mps` 1.3 → 1.9 m/s, walk animation `cow_anim_speed` 1.0 → 1.45 to match.
+
+- Screenshot scene rebuilds the road chunks after placing its hand-made cow (`RoadWorld.rebuild_chunks()`), so the rail opening shows in `hazards*.png`.
+
+### Verified
+- Headless import exit 0, no script errors. Smoke test: exit 1 with only the same 2 failures as in 0.8.0, caused by your local `bike_tuning.tres` speed edits (`full steer at cruise`, `stays under 29 km/h`; 51.8 km/h at 90 RPM). All new checks pass (score shown, crash costs points, restart resets it, rail opening at a cow). Endless spacing at max difficulty: 11 oncoming cars and 6 cows by the end of the ramp; endless bot 0 crashes in 45 s; course bot 2 crashes (truck, car; limit 6).
+- Screenshots (windowed): looked at `hazards`, `hazards_first_person` (rail opening on both sides at the cow, end posts, score top-left), `crashed_get_up` and `crash_impact` (red "-100" under the score). Didn't look at the other shots.
+- Not played by a human. Haven't checked how the faster ramp feels with the theremin.
+
+## 0.8.0: 2026-11-11, oncoming cars, crossing cows, car pack models, faster difficulty
+
+### Added
+- **Oncoming cars** (new hazard `ONCOMING`, endless). The car pops up `road.oncoming_trigger_m` (120 m) ahead of the bike and drives straight at you down its lane at 7 → 12 m/s (`oncoming_speed_easy_mps` → `_hard_mps`, scales with difficulty). Get out of its lane. Its whole drive is reserved in the hazard spacing (`Obstacle.zone_*`): nothing else in its lane over those 120 m, and nothing in the other lane either (plus `swap_gap_m` on both ends), so there is always somewhere to go. If you crash, oncoming cars still ahead of you brake to a stop, so nothing runs into the rider after the get-up. Parked or oncoming, the crash message says *car* or *truck*.
+- **Cows crossing the road** (new hazard `COW`, endless), using `Assets/cow/source/Cow.glb` and its `walking` animation (looped; `iddle` while waiting). The cow stands in the field beside the road (`cow_side_m` outside the rail) and starts walking across when you're 2.5–5.5 s away at your current speed (`cow_lead_min_s` / `_max_s`, random per cow), at 1.3 m/s (`cow_speed_mps`). Each cow is somewhere different on the road when you reach it: read which way it's going and pass behind it. It stops on the far side. Hit box = the cow (`cow_length_m` 2.4 m, across the road). Spacing treats a cow as blocking both lanes.
+- New `RoadTuning` groups **Vehicles (car pack)**, **Oncoming cars** and **Cow** (TUNING.md). `weight_oncoming` 1.4 and `weight_cow` 1.0 next to the old weights; `oncoming_from` / `cow_from` (difficulty, default 0 = right after the intro).
+- Smoke test `[moving hazards]`: car pack splits into 10 vehicles, trucks stretched to `truck_length_m`; an oncoming car waits until the bike is within 120 m, is hidden until then, then drives at the bike; a cow waits outside the rail, starts walking at `lead_s`, plays `walking`, crosses and stops on the far side; restart puts both back; in a real ride an oncoming car right ahead crashes you ("hit the oncoming car") and then stays stopped. `[hazard spacing]` now counts moving hazards (9 oncoming cars and 9 cows by 5.2 km) and uses the reserved stretches. The test bot looks further ahead for oncoming cars and predicts where a cow will be.
+- Screenshots `hazards`, `hazards_first_person` and `vehicles_first_person`.
+
+### Changed
+- **All car models now come from the car pack** (`Assets/10-lowpoly-cars/source/cars.fbx`, new `scripts/world/vehicle_pack.gd`). The FBX has the 10 vehicles as loose meshes side by side; `VehiclePack` groups touching meshes into vehicles once, centres them, turns them to face down the road and scales them to `vehicle_width_m` (2.0 m). **Trucks and the bus are stretched to `truck_length_m` (9.5 m)**; their wheels are moved, not squashed. Cars come out 3.8–4.3 m long. 30 % of car hazards are trucks/buses (`truck_chance`). The hit box follows the model (`vehicle_hit_width` 0.85 of the width, because of the mirrors), so trucks are much longer to get past. Parked cars face either way; oncoming ones face you. Course cars use the pack too (same positions). The old box car stays as a fallback if the FBX is missing.
+- **Difficulty ramps up faster** (`data/road_tuning.tres`): `difficulty_ramp_m` 4400 → 3000 m and `difficulty_curve` 1.3 → 1.15, so it climbs sooner and more evenly. Max difficulty now comes 3 km after the intro instead of 4.4 km.
+- `RoadWorld.check_hit` looks as far along the road as the hazard is long (trucks), not a fixed 6 m.
+
+### Verified
+- Headless import exit 0, no script errors. Smoke test with the committed `bike_tuning.tres`: exit 0, all checks pass (endless bot 0 crashes, course 0 crashes). With your local `bike_tuning.tres` edits (`speed_per_rpm` 0.16, 51.8 km/h at 90 RPM): the only 2 failures are the speed checks that already fail with those edits (`stays under 29 km/h`, `full steer at cruise`); the course bot hits a truck and a car once each (2 crashes, limit 6).
+- Screenshots (windowed): looked at `hazards`, `hazards_first_person` and `vehicles_first_person`. The cow is textured, animated and walks head first; the oncoming car faces the bike; the pack's palette texture loads. Didn't look closely at every vehicle model, a truck side-on, or the cow clipping through the guard rail.
+- Not played by a human.
+
 ## 0.7.0: 2026-11-11, no more forced potholes, harsher potholes
 
 ### Fixed

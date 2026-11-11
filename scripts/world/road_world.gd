@@ -73,7 +73,7 @@ func start_s() -> float:
 ## First obstacle the bike's box overlaps that it hasn't already hit, or null.
 func check_hit(s: float, lateral: float, half_len: float, half_wid: float) -> Obstacle:
 	for o in obstacles:
-		if o.hit or absf(o.s - s) > 6.0:
+		if o.hit or absf(o.s - s) > o.half_along + 4.0:
 			continue
 		if o.overlaps(s, lateral, half_len, half_wid):
 			return o
@@ -109,10 +109,47 @@ func knock(o: Obstacle, push: Vector3) -> void:
 ## potholes can be hit again.
 func reset_obstacles() -> void:
 	for o in obstacles:
-		if o.hit and o.crashes and o.node != null:
+		if (o.hit and o.crashes or o.is_mover()) and o.node != null:
 			o.node.queue_free()
 			o.node = null
 		o.hit = false
+		if o.is_mover():
+			o.reset_motion()
+
+
+## Moves oncoming cars and cows. Oncoming cars start driving once the bike is
+## within their trigger distance; cows start walking once the bike is lead_s
+## seconds away. Call every physics tick while riding (not in the countdown).
+func update_movers(dt: float, bike_s: float, bike_speed: float) -> void:
+	for o in obstacles:
+		if not o.is_mover() or o.stopped:
+			continue
+		match o.kind:
+			Obstacle.Kind.ONCOMING:
+				if not o.active and o.s - bike_s <= o.trigger_m:
+					o.active = true
+				if o.active:
+					o.s -= o.speed * dt
+			Obstacle.Kind.COW:
+				if not o.active and o.s > bike_s and (o.s - bike_s) / maxf(bike_speed, 1.0) <= o.lead_s:
+					o.active = true
+				if o.active:
+					o.lateral = move_toward(o.lateral, o.end_lateral, o.speed * dt)
+					if is_equal_approx(o.lateral, o.end_lateral):
+						o.stopped = true
+				o.play_cow(o.active and not o.stopped, tuning.cow_anim_speed)
+		_place_node(o)
+
+
+## The bike crashed: oncoming cars still ahead of it brake to a stop (so they
+## don't run into the rider after the get-up), and whatever it hit stops.
+func on_bike_crash(bike_s: float, hit: Obstacle) -> void:
+	for o in obstacles:
+		if o.kind == Obstacle.Kind.ONCOMING and o.active and o.s > bike_s - 1.0:
+			o.stopped = true
+	if hit != null and hit.is_mover():
+		hit.stopped = true
+		hit.play_cow(false, tuning.cow_anim_speed)
 
 
 ## Updates generation/streaming for a bike at distance s.
@@ -159,28 +196,50 @@ func _spawn_endless_obstacles(to_s: float) -> void:
 		var lat := lane_center(lane)
 		if kind == Obstacle.Kind.POTHOLE:
 			lat += _rng.randf_range(-0.4, 0.4)
-		var o := _place_spaced(Obstacle.make(kind, _next_obstacle_s, lat, tuning.lane_width_m))
+		var o := Obstacle.make(kind, _next_obstacle_s, lat, tuning.lane_width_m)
+		_setup_hazard(o)
+		if kind == Obstacle.Kind.ONCOMING:
+			# The car appears trigger_m ahead and drives back down its stretch.
+			o.shift(o.trigger_m)
+		_place_spaced(o)
 		# Harder: sometimes a pothole in the other lane just after it. Ride past
 		# the obstacle in the free lane, then swap back at once. Always at least
 		# swap_gap_m of clear road between the two, never side by side.
-		if difficulty > tuning.paired_pothole_from and kind != Obstacle.Kind.POTHOLE 				and _rng.randf() < tuning.paired_pothole_chance * difficulty:
+		if difficulty > tuning.paired_pothole_from and kind != Obstacle.Kind.POTHOLE and not o.is_mover() 				and _rng.randf() < tuning.paired_pothole_chance * difficulty:
 			var p := Obstacle.make(Obstacle.Kind.POTHOLE, 0.0, lane_center(1 - lane), tuning.lane_width_m)
-			p.s = o.s + o.half_along + tuning.swap_gap_m + p.half_along + _rng.randf_range(0.0, tuning.paired_pothole_spread_m)
+			p.shift(o.s + o.half_along + tuning.swap_gap_m + p.half_along + _rng.randf_range(0.0, tuning.paired_pothole_spread_m) - p.s)
 			_place_spaced(p)
 		var gap := lerpf(tuning.obstacle_gap_easy_m, tuning.obstacle_gap_hard_m, difficulty)
 		gap *= 1.0 + _rng.randf_range(-tuning.obstacle_gap_jitter, tuning.obstacle_gap_jitter)
 		_next_obstacle_s = o.s + maxf(gap, 8.0)
 
 
-## Clear road needed between two hazards: swap_gap_m if they're in opposite
-## lanes (you have to change lanes between them), same_lane_gap_m otherwise.
+## Car pack vehicle for cars, speed for oncoming cars, side and timing for cows.
+func _setup_hazard(o: Obstacle) -> void:
+	match o.kind:
+		Obstacle.Kind.CAR:
+			o.set_vehicle(VehiclePack.pick(_rng, tuning.truck_chance), tuning)
+		Obstacle.Kind.ONCOMING:
+			o.set_vehicle(VehiclePack.pick(_rng, tuning.truck_chance), tuning)
+			var v := lerpf(tuning.oncoming_speed_easy_mps, tuning.oncoming_speed_hard_mps, difficulty)
+			o.setup_oncoming(v, tuning.oncoming_trigger_m)
+		Obstacle.Kind.COW:
+			var side := -1.0 if _rng.randf() < 0.5 else 1.0
+			var lead := _rng.randf_range(tuning.cow_lead_min_s, maxf(tuning.cow_lead_min_s, tuning.cow_lead_max_s))
+			o.setup_cow(tuning, rail_offset(), side, lead)
+
+
+## Clear road needed between two hazards: same_lane_gap_m if both only block
+## the same single lane, otherwise swap_gap_m (you have to change lanes between
+## them, and a cow can be in either lane).
 func needed_gap(a: Obstacle, b: Obstacle) -> float:
-	return tuning.swap_gap_m if lane_of(a.lateral) != lane_of(b.lateral) else tuning.same_lane_gap_m
+	return tuning.same_lane_gap_m if a.lanes() == b.lanes() and a.lanes() != 3 else tuning.swap_gap_m
 
 
-## Clear road between two hazards along s (negative = they overlap).
+## Clear road between the reserved stretches of two hazards (negative = they
+## overlap). An oncoming car reserves its whole drive (Obstacle.zone_*).
 static func clear_gap(a: Obstacle, b: Obstacle) -> float:
-	return absf(a.s - b.s) - a.half_along - b.half_along
+	return absf(a.zone_center() - b.zone_center()) - a.zone_half() - b.zone_half()
 
 
 ## Adds o to the road, first pushing it further along until it has enough
@@ -192,14 +251,17 @@ func _place_spaced(o: Obstacle) -> Obstacle:
 		for other in obstacles:
 			var need := needed_gap(o, other)
 			if clear_gap(o, other) < need - 0.001:
-				o.s = other.s + other.half_along + need + o.half_along
+				var want := other.zone_center() + other.zone_half() + need + o.zone_half()
+				o.shift(want - o.zone_center())
 				moved = true
 	obstacles.append(o)
 	return o
 
 
 func _pick_kind() -> Obstacle.Kind:
-	var w := [tuning.weight_cones, tuning.weight_barrier, tuning.weight_car, tuning.weight_pothole]
+	var w := [tuning.weight_cones, tuning.weight_barrier, tuning.weight_car, tuning.weight_pothole,
+			tuning.weight_oncoming if difficulty >= tuning.oncoming_from else 0.0,
+			tuning.weight_cow if difficulty >= tuning.cow_from else 0.0]
 	var total := 0.0
 	for v: float in w:
 		total += v
@@ -232,7 +294,9 @@ func _build_course() -> void:
 		var lat := lane_center(int(entry[1]))
 		if entry.size() > 3:
 			lat += float(entry[3])
-		obstacles.append(Obstacle.make(Obstacle.kind_from_name(entry[2]), entry[0], lat, tuning.lane_width_m))
+		var o := Obstacle.make(Obstacle.kind_from_name(entry[2]), entry[0], lat, tuning.lane_width_m)
+		_setup_hazard(o)
+		obstacles.append(o)
 	_build_finish_gate()
 
 
@@ -255,6 +319,15 @@ func _stream_chunks(s: float) -> void:
 			_chunks.erase(c)
 
 
+## Drops every built road chunk; they're rebuilt on the next update_around().
+## For hazards added by hand after the road was built (screenshots), so the
+## rail picks up cow openings.
+func rebuild_chunks() -> void:
+	for c: int in _chunks.keys():
+		(_chunks[c] as Node3D).queue_free()
+	_chunks.clear()
+
+
 func _stream_obstacles(s: float) -> void:
 	var keep := tuning.keep_behind_m
 	var i := 0
@@ -267,12 +340,20 @@ func _stream_obstacles(s: float) -> void:
 				obstacles.remove_at(i)
 				continue
 			o.node = null
-		elif o.node == null and not (o.hit and o.crashes) and o.s < s + tuning.view_ahead_m and o.s >= s - keep:
-			o.node = o.build_node(tuning.lane_width_m, _rng)
-			var yaw := path.yaw_at(o.s)
-			o.node.transform = Transform3D(Basis(Vector3.UP, yaw), path.point_at(o.s, o.lateral))
+		elif o.node == null and not (o.hit and o.crashes) and o.s < s + tuning.view_ahead_m and o.s >= s - keep \
+				and not (o.kind == Obstacle.Kind.ONCOMING and not o.active):
+			# (An oncoming car only shows up once it starts driving.)
+			o.node = o.build_node(tuning, _rng)
 			add_child(o.node)
+			_place_node(o)
 		i += 1
+
+
+func _place_node(o: Obstacle) -> void:
+	if o.node == null:
+		return
+	var yaw := path.yaw_at(o.s)
+	o.node.transform = Transform3D(Basis(Vector3.UP, yaw), path.point_at(o.s, o.lateral))
 
 
 # ---------------------------------------------------------------- meshes
@@ -341,22 +422,34 @@ func _build_chunk(c: int) -> Node3D:
 		j += gap
 	_add_mesh(node, lines, "line_white")
 
+	# Guard rails, with an opening wherever a cow crosses.
+	var gaps := _rail_gaps(i0, i1)
 	var rails := _surface()
 	var top := tuning.rail_height_m
 	for side: float in [-1.0, 1.0]:
-		_wall(rails, i0, i1, side * rail, top - 0.3, top)
+		_wall(rails, i0, i1, side * rail, top - 0.3, top, gaps)
 	_add_mesh(node, rails, "rail")
 
-	# Posts
+	# Posts (none inside an opening, one at each end of it).
 	var post_every := maxi(1, int(round(tuning.rail_post_spacing_m / path.step)))
 	var post_xf: Array[Transform3D] = []
 	var k := i0 - (i0 % post_every)
 	while k < i1:
-		if k >= i0:
+		if k >= i0 and not _in_gap(float(k) * path.step, gaps):
 			for side: float in [-1.0, 1.0]:
 				var p := path.points[k] + RoadPath.right_of(path.yaws[k]) * (side * (rail + 0.08))
 				post_xf.append(Transform3D(Basis(Vector3.UP, path.yaws[k]), p + Vector3.UP * top * 0.5))
 		k += post_every
+	var s0 := float(i0) * path.step
+	var s1 := float(i1) * path.step
+	for g: Vector2 in gaps:
+		for end_s: float in [g.x, g.y]:
+			if end_s < s0 or end_s >= s1:
+				continue
+			var yaw := path.yaw_at(end_s)
+			for side: float in [-1.0, 1.0]:
+				var p := path.point_at(end_s, side * (rail + 0.08))
+				post_xf.append(Transform3D(Basis(Vector3.UP, yaw), p + Vector3.UP * top * 0.5))
 	_multimesh(node, _post_mesh, post_xf)
 
 	_scatter_scenery(node, i0, i1, rail, c)
@@ -400,9 +493,34 @@ func _strip(st: SurfaceTool, i0: int, i1: int, lat_a: float, lat_b: float, y: fl
 		_tri(st, a0, b1, b0)
 
 
-## Vertical double-sided ribbon at a fixed lateral offset (guard rail).
-func _wall(st: SurfaceTool, i0: int, i1: int, lat: float, y0: float, y1: float) -> void:
+## Openings in the guard rail (both sides) in samples i0..i1: one per cow
+## crossing, cow_rail_gap_m long. Each is Vector2(from_s, to_s).
+func _rail_gaps(i0: int, i1: int) -> Array[Vector2]:
+	var gaps: Array[Vector2] = []
+	var half := tuning.cow_rail_gap_m * 0.5
+	if half <= 0.0:
+		return gaps
+	var s0 := float(i0) * path.step
+	var s1 := float(i1) * path.step
+	for o in obstacles:
+		if o.kind == Obstacle.Kind.COW and o.start_s + half >= s0 and o.start_s - half <= s1:
+			gaps.append(Vector2(o.start_s - half, o.start_s + half))
+	return gaps
+
+
+static func _in_gap(s: float, gaps: Array[Vector2]) -> bool:
+	for g in gaps:
+		if s > g.x and s < g.y:
+			return true
+	return false
+
+
+## Vertical double-sided ribbon at a fixed lateral offset (guard rail). Skips
+## the segments whose middle is inside one of `gaps` (s ranges).
+func _wall(st: SurfaceTool, i0: int, i1: int, lat: float, y0: float, y1: float, gaps: Array[Vector2] = []) -> void:
 	for i in range(i0, i1):
+		if _in_gap((float(i) + 0.5) * path.step, gaps):
+			continue
 		var a0 := _pt(i, lat, y0)
 		var b0 := _pt(i, lat, y1)
 		var a1 := _pt(i + 1, lat, y0)

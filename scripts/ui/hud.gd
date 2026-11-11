@@ -1,4 +1,4 @@
-## In-game HUD. Kept minimal on purpose: control profile (top-left), speed
+## In-game HUD. Kept minimal on purpose: score + control profile (top-left), speed
 ## (top-right), speedometer (bottom-left), steering bar + lean dial (bottom
 ## centre), and the big centre messages. F1 shows the debug readout.
 ## The game pushes values in each frame via the public vars/methods.
@@ -7,6 +7,9 @@ extends CanvasLayer
 
 var gauges: HudGauges
 var speedometer: HudSpeedometer
+var score_label: Label
+## "-100" that pops up under the score on a crash and fades.
+var penalty_label: Label
 var profile_label: Label
 var warn_label: Label
 var speed_label: Label
@@ -17,6 +20,7 @@ var debug_label: Label
 var _flash_t := 0.0
 var _flash_rect: ColorRect
 var _flash_alpha := 0.0
+var _penalty_tween: Tween
 
 
 func _ready() -> void:
@@ -33,13 +37,23 @@ func _ready() -> void:
 	_flash_rect.color = Color(0, 0, 0, 0)
 	root.add_child(_flash_rect)
 
+	score_label = UiKit.label("SCORE 0", 44)
+	score_label.position = Vector2(24, 12)
+	root.add_child(score_label)
+
+	penalty_label = UiKit.label("", 34)
+	penalty_label.add_theme_color_override("font_color", Palette.color("hud_bad"))
+	penalty_label.position = Vector2(28, 66)
+	penalty_label.modulate.a = 0.0
+	root.add_child(penalty_label)
+
 	profile_label = UiKit.label("", 22)
-	profile_label.position = Vector2(24, 18)
+	profile_label.position = Vector2(24, 124)
 	root.add_child(profile_label)
 
 	warn_label = UiKit.label("", 20)
 	warn_label.add_theme_color_override("font_color", Palette.color("hud_warn"))
-	warn_label.position = Vector2(24, 50)
+	warn_label.position = Vector2(24, 154)
 	root.add_child(warn_label)
 
 	speed_label = UiKit.label("0", 56, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -74,7 +88,7 @@ func _ready() -> void:
 	root.add_child(sub_label)
 
 	debug_label = UiKit.label("", 16)
-	debug_label.position = Vector2(24, 130)
+	debug_label.position = Vector2(24, 196)
 	debug_label.visible = false
 	root.add_child(debug_label)
 
@@ -115,6 +129,24 @@ func slam(text: String, sub: String = "") -> void:
 	center_label.scale = Vector2.ONE * 1.8
 	var tw := create_tween()
 	tw.tween_property(center_label, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func set_score(value: int) -> void:
+	score_label.text = "SCORE %d" % value
+
+
+## Crash: "-amount" drops in under the score and fades out.
+func score_penalty(amount: int) -> void:
+	if amount <= 0:
+		return
+	penalty_label.text = "-%d" % amount
+	penalty_label.modulate.a = 1.0
+	penalty_label.position.y = 52
+	if _penalty_tween != null:
+		_penalty_tween.kill()
+	_penalty_tween = create_tween().set_parallel()
+	_penalty_tween.tween_property(penalty_label, "position:y", 72.0, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_penalty_tween.tween_property(penalty_label, "modulate:a", 0.0, 0.8).set_delay(1.2)
 
 
 ## Top-left text: the control profile, plus a warning line when its device is silent.

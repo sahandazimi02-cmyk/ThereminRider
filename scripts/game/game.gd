@@ -174,6 +174,7 @@ func _physics_process(dt: float) -> void:
 			bike.step(dt, steer, cadence)
 			_track()
 			road.update_movers(dt, bike_s, bike.speed)
+	OscSender.speed_kmh = bike.speed * 3.6
 	road.update_around(bike_s)
 	_update_ground()
 	_update_hud()
@@ -197,6 +198,7 @@ func _process(_delta: float) -> void:
 
 
 func _exit_tree() -> void:
+	OscSender.speed_kmh = 0.0
 	_end_slowmo()
 
 

@@ -11,6 +11,16 @@ Godot listens on **UDP port 9100**, on every network card (`*`). Change this in 
 
 You can rename all four addresses in `data/input_tuning.tres`.
 
+## OSC protocol: Godot → Max (since 0.10.0)
+
+Godot sends to **UDP 127.0.0.1:9101** (Max: `[udpreceive 9101]`). Settings in `data/input_tuning.tres` (`osc_out_enabled`, `osc_out_host`, `osc_out_port`, `osc_out_rate_hz`, `addr_speed_out`). For Max on another PC set `osc_out_host` to its IP.
+
+| Address | Args | Meaning | Rate |
+|---|---|---|---|
+| `/bike/speed` | float, km/h ≥ 0 | the bike's speed in the game (0 when stopped or crashed) | 30 /s |
+
+Max divides it by a reference speed (default 20 km/h = video rate 1.0), clips to 0..4, smooths it and sets `jit.movie`'s `rate`.
+
 ## Rules Godot applies
 
 - **Freshness:** a channel counts as "live" while messages arrive at least every `osc_timeout_s` (0.75 s). Max must therefore keep sending, not only when a value changes. The patch uses `snapshot~ 20` and `metro 50` for this.

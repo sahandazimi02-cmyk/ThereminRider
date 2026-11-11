@@ -75,3 +75,7 @@ Other sensors still fit:
 **Don't regenerate (since 0.4.2).** `max/ThereminRider.maxpat` now holds the user's own Max edits (the theremin steering via `ftom` → `zmap 60. 80. -1. 1.` with multislider meters, and the moved columns). Running the generator over it would wipe that work, and the generator doesn't contain those edits. Change the patch in Max, or edit its JSON carefully and diff it against the last saved version.
 
 Before 0.4.2: `tools/make_maxpat.py` built this patch from code: `python tools/make_maxpat.py max/ThereminRider.maxpat`. The script also checks the layout (no cable crosses columns, nothing overlaps or spills out of its column) and prints `LAYOUT:` lines if something does. If you edit the patch in Max and save it, that file is the source of truth; don't regenerate over it.
+
+## Video speed from the game (0.10.0)
+
+Columns 5 (Arduino) and 6 (Pedals) were **removed** from the patch. Column 5 is now **VIDEO SPEED**: `udpreceive 9101` → `route /bike/speed` → `expr $f1 / $f2` (reference km/h for normal speed, default 20) → `clip 0. 4.` → `slide 4. 4.` → `rate $1` into `jit.movie`. Pedal the bike in the game with the controller/keyboard (profile *Theremin + controller / keyboard pedal*); the sections above about the Arduino and column 6 are history. Change the reference speed in the number box under "km/h that plays the video at normal speed".

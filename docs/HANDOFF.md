@@ -1,6 +1,6 @@
 # Handoff: Theremin Rider
 
-**Last updated:** 2026-11-11 · **Version:** 0.13.0 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
+**Last updated:** 2026-11-11 · **Version:** 0.13.1 · **Engine:** Godot 4.7.2 (`D:\Godot_v4.7.2-stable_win64.exe`; use `_console.exe` for CLI runs) · **Repo:** `D:\drive\ThereminRider`, GitHub `sahandazimi02-cmyk/ThereminRider` (private)
 
 ## 1. What this is
 
@@ -28,7 +28,7 @@ A co-op bicycle game. Player 1 steers and **balances** with a theremin's pitch. 
 | OSC receive in Godot | Done; tested with `tools/osc_test_sender.py` |
 | Max patch (theremin → steer) | **Now the user's own Max-saved patch** (0.4.2). Steering: pitch → `ftom` → `zmap 60. 80. -1. 1.`. Don't run `tools/make_maxpat.py` over it. |
 | Stationary bike sensor | Arduino on COM7, 9600 baud, sends `p` per pedal turn (checked live). Max column 5 opens COM7 on load and feeds pulse in → RPM → `/bike/cadence` (0.4.2). Some extra/irregular pulses seen (KI-27). |
-| Audio (0.13.0) | Cows moo (3D, from the cow) when they start crossing; nature ambience loops quietly (−22 dB) through the whole ride (RoadTuning "Cow" / "Audio"). Smoke-tested, not listened to. No bike/wind/crash sounds yet. |
+| Audio (0.13.0) | Cows moo (3D, from the cow) when they start crossing; nature ambience (`nature_ambience.ogg`, 0.13.1) loops quietly (−22 dB) through the whole ride (RoadTuning "Cow" / "Audio"). Smoke-tested, not listened to. No bike/wind/crash sounds yet. |
 | Hills, art pass | Not started |
 
 ## 3. How to run
@@ -63,7 +63,7 @@ Autoloads:  GameSession (mode, assist, camera pref, control profile, best scores
 | `scripts/bike/` | `bike.gd` (physics), `bike_model.gd` (visual), `bike_camera.gd`, `bike_tuning.gd` |
 | `scripts/input/` | `osc_parser.gd`, `stroke_cadence.gd` (taps → RPM), `input_tuning.gd` |
 | `scripts/world/` | `road_path.gd` (centre line, `locate()` → s/lateral), `road_world.gd` (also moves oncoming cars / cows: `update_movers`), `obstacle.gd`, `vehicle_pack.gd` (car pack FBX → 10 vehicles), `road_signs.gd` (sign GLBs → roadside + warning signs), `course_data.gd`, `road_tuning.gd` |
-| `Assets/` | Third-party models: `10-lowpoly-cars` (car pack FBX + palette texture), `cow` (Cow.glb with animations). Sounds: `audio/moo.wav`, `audio/490779__pietergrobler__nature-ambience.wav` (Freesound, see `audio/credits.txt`). Your own: `steering.glb` (handlebar, 0.12.0), `Roaad signs used random.glb` / `Roaad signs hazards.glb` (road signs; `road signs.blend` is their source) |
+| `Assets/` | Third-party models: `10-lowpoly-cars` (car pack FBX + palette texture), `cow` (Cow.glb with animations). Sounds: `audio/moo.wav`, `audio/nature_ambience.ogg` (Freesound, see `audio/credits.txt`). Your own: `steering.glb` (handlebar, 0.12.0), `Roaad signs used random.glb` / `Roaad signs hazards.glb` (road signs; `road signs.blend` is their source) |
 | `scripts/game/game.gd` | Phases COUNTDOWN → PLAY → FALLEN → (get up) → PLAY / FINISHED. Collisions, scoring, HUD feed, crash effects + slow motion |
 | `scripts/game/crash_fx.gd` | Particle bursts (sparks, dust, debris) and the `Tumbler` that knocks obstacle pieces flying |
 | `scripts/ui/` | HUD, gauges (steering bar, lean dial, get-up ring), speedometer, menus, input check, `ui_kit.gd` |

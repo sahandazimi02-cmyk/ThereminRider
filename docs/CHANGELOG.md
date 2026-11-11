@@ -2,6 +2,15 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.13.1: 2026-11-11, ambience as OGG (63 MB → 3.6 MB)
+
+### Changed
+- The nature ambience is now `Assets/audio/nature_ambience.ogg` (Ogg Vorbis, quality 5, ~132 kb/s, same 3:40 length, 48 kHz stereo), encoded from the 63 MB 24-bit WAV with ffmpeg. The WAV was removed from the project; it's still in git history (commit 38b0575) if you ever need it.
+- It now loops through Godot's OGG import (`loop=true` in its `.import`), which is gapless. The `finished` → `play()` restart in `Game._build_ambience()` stays as a fallback. KI-47 fixed.
+
+### Verified
+- Headless import exit 0, no errors. Smoke test: exit 1 with only the same 2 speed failures as 0.13.0; "nature ambience is loaded and playing" passes in all 5 game scenes the test opens. Not listened to.
+
 ## 0.13.0: 2026-11-11, cow moo and nature ambience
 
 ### Added

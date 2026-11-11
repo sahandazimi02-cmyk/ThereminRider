@@ -7,7 +7,7 @@ extends Node3D
 enum Phase { COUNTDOWN, PLAY, FALLEN, FINISHED }
 
 const MPS_TO_KMH := 3.6
-const AMBIENCE_SOUND := "res://Assets/audio/490779__pietergrobler__nature-ambience.wav"
+const AMBIENCE_SOUND := "res://Assets/audio/nature_ambience.ogg"
 
 ## Tests set these before adding the scene.
 var skip_countdown := false
@@ -430,7 +430,8 @@ func _build_ambience() -> void:
 	ambience.process_mode = Node.PROCESS_MODE_ALWAYS
 	ambience.volume_db = -80.0
 	add_child(ambience)
-	ambience.finished.connect(ambience.play)  # loop
+	# Loops via the OGG import (loop=true); this restarts it if that is ever turned off.
+	ambience.finished.connect(ambience.play)
 	ambience.play()
 	var fade := create_tween()
 	fade.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)

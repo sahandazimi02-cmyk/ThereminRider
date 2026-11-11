@@ -5,6 +5,7 @@ moo.wav
   https://freesound.org/s/163727/
   Trimmed for the game and re-saved as 16-bit PCM WAV.
 
-490779__pietergrobler__nature-ambience.wav
+nature_ambience.ogg
   "Nature Ambience" by pietergrobler
   https://freesound.org/s/490779/
+  Converted from the original 24-bit WAV to Ogg Vorbis for the game.

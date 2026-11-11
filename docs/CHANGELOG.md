@@ -2,6 +2,17 @@
 
 Format: newest first. Dates are YYYY-MM-DD.
 
+## 0.10.0: 2026-11-11, game speed → Max video playback rate
+
+### Added
+- `OscSender` autoload sends `/bike/speed` (km/h, 30 /s) to UDP 127.0.0.1:9101. New `InputTuning` group *OSC output*.
+- Max patch: new column 5 *VIDEO SPEED* (udpreceive 9101 → rate → `jit.movie`).
+
+### Removed
+- Max patch: Arduino (column 5) and Pedals (column 6) sections.
+
+### Verified
+- Headless import exit 0. Smoke test: same 2 failures as 0.9.0 and nothing new. Captured the UDP output with `nc`: valid OSC `/bike/speed ,f`. Max patch is valid JSON but not opened in Max.
 ## 0.13.1: 2026-11-11, ambience as OGG (63 MB → 3.6 MB)
 
 ### Changed

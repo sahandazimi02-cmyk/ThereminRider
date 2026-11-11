@@ -23,6 +23,18 @@ const PATH := "res://data/input_tuning.tres"
 ## Any message = one pedal stroke (alternative to sending RPM).
 @export var addr_pedal_stroke: String = "/bike/pedal"
 
+@export_group("OSC output (Godot -> Max)")
+## Send the bike's speed to Max so it can set the video playback speed.
+@export var osc_out_enabled: bool = true
+## IP of the computer running Max ("127.0.0.1" = this PC).
+@export var osc_out_host: String = "127.0.0.1"
+## UDP port of Max's [udpreceive].
+@export_range(1024, 65535, 1) var osc_out_port: int = 9101
+## Messages per second.
+@export_range(1.0, 100.0, 1.0) var osc_out_rate_hz: float = 30.0
+## Float, bike speed in km/h (0 when stopped, crashed or not in a run).
+@export var addr_speed_out: String = "/bike/speed"
+
 @export_group("Theremin steering (OSC)")
 @export var osc_steer_invert: bool = false
 ## Multiplies the incoming value before clamping to -1..1.

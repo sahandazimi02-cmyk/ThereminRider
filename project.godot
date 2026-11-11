@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 GameSession="*res://scripts/autoload/game_session.gd"
 OscReceiver="*res://scripts/autoload/osc_receiver.gd"
 RiderInput="*res://scripts/autoload/rider_input.gd"
+OscSender="*res://scripts/autoload/osc_sender.gd"
 
 [display]
 
